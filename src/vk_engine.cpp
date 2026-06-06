@@ -113,6 +113,7 @@ void VulkanEngine::init_Vulkan()
 
 void VulkanEngine::init_Swapchain()
 {
+    create_Swapchain(_windowExtent.width, _windowExtent.height);
 }
 
 void VulkanEngine::init_Commands()
@@ -121,12 +122,55 @@ void VulkanEngine::init_Commands()
 
 void VulkanEngine::init_Sync_Structures()
 {
+    
+}
+
+void VulkanEngine::create_Swapchain(uint32_t width, uint32_t height)
+{
+    //Use VKBootstrap to create a swapchain builder with the correct config
+    vkb::SwapchainBuilder vkb_swapchain_builder{ _physicalDevice, _device, _surface };
+    _swapchainImageFormat = VK_FORMAT_R8G8B8A8_UNORM;
+    vkb::Swapchain vkb_Swapchain = vkb_swapchain_builder
+        .set_desired_format(VkSurfaceFormatKHR{ .format = _swapchainImageFormat , .colorSpace = VK_COLORSPACE_SRGB_NONLINEAR_KHR }) //Set the Format of the swapchain images to RGBA8
+        .set_desired_extent(width, height)                                                                                          //Set the Extent of the swapchain image to be the same as the window extent
+        .set_desired_present_mode(VK_PRESENT_MODE_FIFO_KHR)                                                                         //Use hard VSYNC for swapchain, forcing FPS to Screen RR
+        .add_image_usage_flags(VK_IMAGE_USAGE_TRANSFER_DST_BIT)                                                                     //Set the Swapchain image as destination for computed data in GPU Buffer
+        .build().value();
+
+    //Set Swapchain variables values using the Swapchain Builder result
+    _swapchain = vkb_Swapchain.swapchain;
+    _swapchainImageExtent2D = vkb_Swapchain.extent;
+    _swapchain_Images = vkb_Swapchain.get_images().value();
+    _swapchain_Image_Views = vkb_Swapchain.get_image_views().value();
+}
+
+void VulkanEngine::destroy_Swapchain()
+{
+    //Use VK Function to destroy the created Swapchain
+    vkDestroySwapchainKHR(_device, _swapchain, nullptr);
+    //Images are destroyed with Swapchain, but image views need to be destroyed explicitly
+    for (auto i = _swapchain_Image_Views.begin(); i != _swapchain_Image_Views.end(); i++)
+    {
+        vkDestroyImageView(_device, *i, nullptr);
+    }
 }
 
 void VulkanEngine::cleanup()
 {
-    if (_isInitialized) {
-
+    if (_isInitialized)
+    {
+        //Destroy all created components in the reverse order of creation
+        //Destroy Swapchain
+        destroy_Swapchain();
+        //Destroy Device(Can't destroy PD since it's a handle to the physical GPU)
+        vkDestroyDevice(_device, nullptr);
+        //Destroy Surface
+        vkDestroySurfaceKHR(_instance, _surface, nullptr);
+        //Destroy Debug Messanger using VKB
+        vkb::destroy_debug_utils_messenger(_instance, _debug_Messanger, nullptr);
+        //Destroy Vulkan Instance
+        vkDestroyInstance(_instance, nullptr);
+        //Destroy created SDL Window
         SDL_DestroyWindow(_window);
     }
 
@@ -169,10 +213,6 @@ void VulkanEngine::run()
                 if (e.key.keysym.sym == SDLK_ESCAPE)
                 {
                     bQuit = true;
-                }
-                else
-                {
-                    fmt::println("Key held down is: {}", (char)e.key.keysym.sym);
                 }
             }
         }

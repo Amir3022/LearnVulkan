@@ -5,6 +5,8 @@
 
 #include <vk_types.h>
 
+struct SDL_Window;
+
 class VulkanEngine {
 public:
 
@@ -17,23 +19,25 @@ public:
 	//initializes everything in the engine
 	void init();
 
-	//Initialize the Various Vulkan Components
-	void init_Vulkan();
-
-	void init_Swapchain();
-
-	void init_Commands();
-
-	void init_Sync_Structures();
-
 	//shuts down the engine
 	void cleanup();
 
-	//draw loop
-	void draw();
-
 	//run main loop
 	void run();
+
+private:
+	//Initialize the Various Vulkan Components
+	void init_Vulkan();
+	void init_Swapchain();
+	void init_Commands();
+	void init_Sync_Structures();
+
+	//Swapchain Functions
+	void create_Swapchain(uint32_t width, uint32_t height);
+	void destroy_Swapchain();
+
+	//draw loop
+	void draw();
 
 private:
 	//Engine Variables
@@ -41,7 +45,7 @@ private:
 	int _frameNumber;
 	bool stop_rendering;
 	VkExtent2D _windowExtent;
-	struct SDL_Window* _window;
+	SDL_Window* _window;
 
 	//Vulkan Components Handles
 	VkInstance _instance;
@@ -49,4 +53,11 @@ private:
 	VkPhysicalDevice _physicalDevice;
 	VkDevice _device;
 	VkSurfaceKHR _surface;
+
+	//Swapchain Variables
+	VkSwapchainKHR _swapchain;
+	VkFormat _swapchainImageFormat;
+	VkExtent2D _swapchainImageExtent2D;
+	std::vector<VkImage> _swapchain_Images;
+	std::vector<VkImageView> _swapchain_Image_Views;
 };
