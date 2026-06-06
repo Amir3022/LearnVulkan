@@ -8,17 +8,23 @@
 class VulkanEngine {
 public:
 
-	bool _isInitialized{ false };
-	int _frameNumber {0};
-	bool stop_rendering{ false };
-	VkExtent2D _windowExtent{ 800 , 600 };
+	VulkanEngine();
 
-	struct SDL_Window* _window{ nullptr };
+	VulkanEngine(const VkExtent2D& inRes);
 
 	static VulkanEngine& Get();
 
 	//initializes everything in the engine
 	void init();
+
+	//Initialize the Various Vulkan Components
+	void init_Vulkan();
+
+	void init_Swapchain();
+
+	void init_Commands();
+
+	void init_Sync_Structures();
 
 	//shuts down the engine
 	void cleanup();
@@ -28,4 +34,19 @@ public:
 
 	//run main loop
 	void run();
+
+private:
+	//Engine Variables
+	bool _isInitialized;
+	int _frameNumber;
+	bool stop_rendering;
+	VkExtent2D _windowExtent;
+	struct SDL_Window* _window;
+
+	//Vulkan Components Handles
+	VkInstance _instance;
+	VkDebugUtilsMessengerEXT  _debug_Messanger;
+	VkPhysicalDevice _physicalDevice;
+	VkDevice _device;
+	VkSurfaceKHR _surface;
 };
