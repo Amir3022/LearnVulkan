@@ -175,6 +175,9 @@ void VulkanEngine::cleanup()
 {
     if (_isInitialized)
     {
+        //Check for the GPU to have finished any executing operaions
+        vkDeviceWaitIdle(_device);
+
         //Destroy all created components in the reverse order of creation
         //Destroy each Command Buffer by destroying the Command Buffer used to allocate (Can't destroy Commands Queue, since its something that's already there provided by VKInstance and not created)
         for (int i = 0; i < FRAME_COUNT; i++)
