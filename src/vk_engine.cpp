@@ -123,7 +123,7 @@ void VulkanEngine::init_Swapchain()
 void VulkanEngine::init_Commands()
 {
     //Define Command Pool Creation Info and use Vulkan to create a command pool with the desired params
-    VkCommandPoolCreateInfo commandPoolCreateInfo = vkinit::command_pool_create_info(_commandsQueueFamilyIndex);
+    VkCommandPoolCreateInfo commandPoolCreateInfo = vkinit::command_pool_create_info(_commandsQueueFamilyIndex, VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
     //Create Command Pool and allocate a Buffer for each Frame
     for (int i = 0; i < FRAME_COUNT; i++)
     {
