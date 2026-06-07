@@ -176,6 +176,11 @@ void VulkanEngine::cleanup()
     if (_isInitialized)
     {
         //Destroy all created components in the reverse order of creation
+        //Destroy each Command Buffer by destroying the Command Buffer used to allocate (Can't destroy Commands Queue, since its something that's already there provided by VKInstance and not created)
+        for (int i = 0; i < FRAME_COUNT; i++)
+        {
+            vkDestroyCommandPool(_device, _frames[i]._commandPool, nullptr);
+        }
         //Destroy Swapchain
         destroy_Swapchain();
         //Destroy Device(Can't destroy PD since it's a handle to the physical GPU)
