@@ -7,6 +7,14 @@
 
 struct SDL_Window;
 
+struct FrameData
+{
+	VkCommandPool _commandPool;
+	VkCommandBuffer _mainCommandBuffer;
+};
+
+constexpr uint32_t FRAME_COUNT = 2;
+
 class VulkanEngine {
 public:
 
@@ -24,6 +32,9 @@ public:
 
 	//run main loop
 	void run();
+
+	//Commands Functions
+	FrameData& GetCurrentFrameData() { return _frames[_frameNumber % FRAME_COUNT]; }
 
 private:
 	//Initialize the Various Vulkan Components
@@ -60,4 +71,9 @@ private:
 	VkExtent2D _swapchainImageExtent2D;
 	std::vector<VkImage> _swapchain_Images;
 	std::vector<VkImageView> _swapchain_Image_Views;
+
+	//Commands Variables
+	std::array<FrameData, FRAME_COUNT> _frames;
+	VkQueue _commandsQueue;
+	uint32_t _commandsQueueFamilyIndex;
 };

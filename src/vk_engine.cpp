@@ -109,6 +109,10 @@ void VulkanEngine::init_Vulkan()
     //Assign values to Physical device and device handles
     _physicalDevice = vkb_Device.physical_device;
     _device = vkb_Device.device;
+
+    //Use the VKBootstrap device to get the Queue and Queue family index
+    _commandsQueue = vkb_Device.get_queue(vkb::QueueType::graphics).value();
+    _commandsQueueFamilyIndex = vkb_Device.get_queue_index(vkb::QueueType::graphics).value();
 }
 
 void VulkanEngine::init_Swapchain()
@@ -118,6 +122,27 @@ void VulkanEngine::init_Swapchain()
 
 void VulkanEngine::init_Commands()
 {
+    //Define Command Pool Creation Info and use Vulkan to create a command pool with the desired params
+    VkCommandPoolCreateInfo commandPoolCreateInfo = {};
+    commandPoolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;       //Create Command Pool Structure
+    commandPoolCreateInfo.pNext = nullptr;                                          
+    commandPoolCreateInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;  //Command pool can create and reset command buffers allocated from it 
+    commandPoolCreateInfo.queueFamilyIndex = _commandsQueueFamilyIndex;             //Commands Queue Family index set with the type got from VKBDevice
+    //Create Command Pool and allocate a Buffer for each Frame
+    for (int i = 0; i < FRAME_COUNT; i++)
+    {
+        VK_CHECK(vkCreateCommandPool(_device, &commandPoolCreateInfo, nullptr, &_frames[i]._commandPool));  //use VK_CHECK to make sure the Command Pool was successfully created
+
+        //Define Command Buffer allocator info struct and use Vulkan to allocate a command buffer from created Command Pool
+        VkCommandBufferAllocateInfo commandBufferAllocatorInfo = {};
+        commandBufferAllocatorInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+        commandBufferAllocatorInfo.pNext = nullptr;
+        commandBufferAllocatorInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+        commandBufferAllocatorInfo.commandPool = _frames[i]._commandPool;
+        commandBufferAllocatorInfo.commandBufferCount = 1;
+
+        VK_CHECK(vkAllocateCommandBuffers(_device, &commandBufferAllocatorInfo, &_frames[i]._mainCommandBuffer));
+    }
 }
 
 void VulkanEngine::init_Sync_Structures()
