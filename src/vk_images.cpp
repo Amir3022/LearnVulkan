@@ -26,4 +26,40 @@ namespace vkutil
 
 		vkCmdPipelineBarrier2(cmd, &dep_Info);
 	}
+
+	void copy_Image_to_Image(VkCommandBuffer cmd, VkImage source, VkImage destination, VkExtent2D sourceExtent, VkExtent2D destinationExtent)
+	{
+		VkImageBlit2 imageBlit2Region = {};
+		imageBlit2Region.sType = VK_STRUCTURE_TYPE_IMAGE_BLIT_2;
+		imageBlit2Region.pNext = nullptr;
+
+		imageBlit2Region.srcOffsets[1].x = sourceExtent.width;
+		imageBlit2Region.srcOffsets[1].y = sourceExtent.height;
+		imageBlit2Region.srcOffsets[1].z = 1;
+		imageBlit2Region.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		imageBlit2Region.srcSubresource.baseArrayLayer = 0;
+		imageBlit2Region.srcSubresource.layerCount = 1;
+		imageBlit2Region.srcSubresource.mipLevel = 0;
+
+		imageBlit2Region.dstOffsets[1].x = destinationExtent.width;
+		imageBlit2Region.dstOffsets[1].y = destinationExtent.height;
+		imageBlit2Region.dstOffsets[1].z = 1;
+		imageBlit2Region.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		imageBlit2Region.dstSubresource.baseArrayLayer = 0;
+		imageBlit2Region.dstSubresource.layerCount = 1;
+		imageBlit2Region.dstSubresource.mipLevel = 0;
+
+		VkBlitImageInfo2 imageBlit2Info = {};
+		imageBlit2Info.sType = VK_STRUCTURE_TYPE_BLIT_IMAGE_INFO_2;
+		imageBlit2Info.pNext = nullptr;
+		imageBlit2Info.srcImage = source;
+		imageBlit2Info.srcImageLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+		imageBlit2Info.dstImage = destination;
+		imageBlit2Info.dstImageLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+		imageBlit2Info.regionCount = 1;
+		imageBlit2Info.pRegions = &imageBlit2Region;
+		imageBlit2Info.filter = VK_FILTER_LINEAR;
+
+		vkCmdBlitImage2(cmd, &imageBlit2Info);
+	}
 }
