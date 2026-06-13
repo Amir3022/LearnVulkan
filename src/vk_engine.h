@@ -7,6 +7,27 @@
 
 struct SDL_Window;
 
+//Struct containing a queue of vulkan object deletors, to be called at each new frame after idle to delete last frame vulkan objects, and at cleanup on program shutdown
+struct deletionQueue
+{
+	std::deque<std::function<void()>> _deletors;
+
+	void addDeletor(std::function<void()>&& deletor)
+	{
+		_deletors.push_back(deletor);
+	}
+
+	void flush()
+	{
+		for (auto i = _deletors.rbegin(); i != _deletors.rend(); i++)
+		{
+			(*i)();
+		}
+
+		_deletors.clear();
+	}
+};
+
 struct FrameData
 {
 	VkCommandPool _commandPool;
@@ -14,6 +35,8 @@ struct FrameData
 	VkSemaphore _swapchainSemaphore;
 	VkSemaphore _renderSemaphore;
 	VkFence _renderFence;
+
+	deletionQueue _frameDeletionQueue;
 };
 
 constexpr uint32_t FRAME_COUNT = 2;
@@ -60,6 +83,7 @@ private:
 	bool stop_rendering;
 	VkExtent2D _windowExtent;
 	SDL_Window* _window;
+	deletionQueue _mainDeletionQueue;
 
 	//Vulkan Components Handles
 	VkInstance _instance;

@@ -199,7 +199,14 @@ void VulkanEngine::cleanup()
             vkDestroySemaphore(_device, _frames[i]._renderSemaphore, nullptr);
             vkDestroySemaphore(_device, _frames[i]._swapchainSemaphore, nullptr);
             vkDestroyFence(_device, _frames[i]._renderFence, nullptr);
+
+            //Clean all vulkan objects in the frame deletion queue
+            _frames[i]._frameDeletionQueue.flush();
         }
+
+        //Clear Engine main Deletion Queue
+        _mainDeletionQueue.flush();
+
         //Destroy Swapchain
         destroy_Swapchain();
         //Destroy Device(Can't destroy PD since it's a handle to the physical GPU)
@@ -223,6 +230,8 @@ void VulkanEngine::draw()
     //Wait for the Render Fence to finish executing the current command in the Buffer, then reset it
     VK_CHECK(vkWaitForFences(_device, 1, &GetCurrentFrameData()._renderFence, true, 1000000000)); //Set wait timeout to 1 billion nano seconds = 1 seconds
     VK_CHECK(vkResetFences(_device, 1, &GetCurrentFrameData()._renderFence));
+    //Clean all objects in currentframe deletors
+    GetCurrentFrameData()._frameDeletionQueue.flush();
 
     //Acquire an Image with index from the swapchain with timeout set to 1 second
     uint32_t swapchainImageIndex;
