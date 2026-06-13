@@ -75,6 +75,7 @@ private:
 
 	//draw loop
 	void draw();
+	void draw_Background(VkCommandBuffer cmd);
 
 private:
 	//Engine Variables
@@ -91,6 +92,7 @@ private:
 	VkPhysicalDevice _physicalDevice;
 	VkDevice _device;
 	VkSurfaceKHR _surface;
+	VmaAllocator _allocator;
 
 	//Swapchain Variables
 	VkSwapchainKHR _swapchain;
@@ -98,6 +100,8 @@ private:
 	VkExtent2D _swapchainImageExtent2D;
 	std::vector<VkImage> _swapchain_Images;
 	std::vector<VkImageView> _swapchain_Image_Views;
+	AllocatedImage _drawImage;	//Image used to draw on before writing on the swapchain acquired image, giving us more freedom to the operations we can do
+	VkExtent2D _drawExtent;
 
 	//Commands Variables
 	std::array<FrameData, FRAME_COUNT> _frames;
