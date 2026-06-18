@@ -11,4 +11,4 @@ struct DescriptorLayoutBuilder
     void clear();
 
     VkDescriptorSetLayout build_Layout(VkDevice device, VkShaderStageFlags shaderStageFlags, void* pNext = nullptr, VkDescriptorSetLayoutCreateFlags flags = 0);
-}
+};
