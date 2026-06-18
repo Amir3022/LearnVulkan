@@ -4,6 +4,7 @@
 #pragma once
 
 #include <vk_types.h>
+#include "vk_descriptors.h"
 
 struct SDL_Window;
 
@@ -68,6 +69,7 @@ private:
 	void init_Swapchain();
 	void init_Commands();
 	void init_Sync_Structures();
+	void init_Descriptors();
 
 	//Swapchain Functions
 	void create_Swapchain(uint32_t width, uint32_t height);
@@ -107,4 +109,9 @@ private:
 	std::array<FrameData, FRAME_COUNT> _frames;
 	VkQueue _commandsQueue;
 	uint32_t _commandsQueueFamilyIndex;
+
+	//Descriptor Variables
+	DescriptorAllocator GlobalDescriptorAllocator;
+	VkDescriptorSet _drawImageDescriptors;
+	VkDescriptorSetLayout _drawImageDescriptorSetLayout;
 };

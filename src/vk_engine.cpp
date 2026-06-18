@@ -5,7 +5,6 @@
 #include <SDL_vulkan.h>
 
 #include <vk_initializers.h>
-#include <vk_types.h>
 #include <vk_images.h>
 
 #include "VkBootstrap.h"
@@ -60,6 +59,8 @@ void VulkanEngine::init()
     init_Commands();
 
     init_Sync_Structures();
+
+    init_Descriptors();
 
     // everything went fine
     _isInitialized = true;
@@ -206,6 +207,51 @@ void VulkanEngine::init_Sync_Structures()
 
         VK_CHECK(vkCreateFence(_device, &fence_Create_Info, nullptr, &_frames[i]._renderFence));
     }
+}
+
+void VulkanEngine::init_Descriptors()
+{
+    //Initialize the Descriptor Pool with maxsets set to 10, each having a single binding of types Storage Image
+    std::vector<DescriptorAllocator::PoolSizeRatio> poolSizeRatios
+    {
+        { 
+            VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+            1
+        }
+    };  
+    GlobalDescriptorAllocator.init_pool(_device, 10, poolSizeRatios);
+
+    //Use DescriptorSetLayoutBuilder to build set layout with a single binding of type storage image
+    DescriptorLayoutBuilder layoutBuilder;
+    layoutBuilder.add_binding(0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
+    _drawImageDescriptorSetLayout = layoutBuilder.build_Layout(_device, VK_SHADER_STAGE_COMPUTE_BIT);   //Remember to add to deletion queue
+
+    //use allocator to allocate Descriptor set using the generated layout
+    _drawImageDescriptors = GlobalDescriptorAllocator.allocate(_device, _drawImageDescriptorSetLayout);
+
+    //Create Image info from Draw Image used to write on
+    VkDescriptorImageInfo drawImageInfo = {};
+    drawImageInfo.imageView = _drawImage._imageView;
+    drawImageInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+
+    //Create Write Descriptor to update the bound descriptor set with image info
+    VkWriteDescriptorSet drawImageWrite = {};
+    drawImageWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    drawImageWrite.pNext = nullptr;
+    drawImageWrite.dstSet = _drawImageDescriptors;
+    drawImageWrite.dstBinding = 0;
+    drawImageWrite.descriptorCount = 1;
+    drawImageWrite.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+    drawImageWrite.pImageInfo = &drawImageInfo;
+
+    vkUpdateDescriptorSets(_device, 1, &drawImageWrite, 0, nullptr);
+
+    //Add create Descriptor Set layout and descriptor allocation pool to deletion queue (Destroying the pool will destroy any allocated sets)
+    _mainDeletionQueue.addDeletor([&]()
+    {
+        GlobalDescriptorAllocator.destroy_pool(_device);
+        vkDestroyDescriptorSetLayout(_device, _drawImageDescriptorSetLayout, nullptr);
+    });
 }
 
 void VulkanEngine::create_Swapchain(uint32_t width, uint32_t height)
