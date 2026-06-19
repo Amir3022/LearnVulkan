@@ -6,6 +6,7 @@
 
 #include <vk_initializers.h>
 #include <vk_images.h>
+#include <vk_pipelines.h>
 
 #include "VkBootstrap.h"
 
@@ -61,6 +62,8 @@ void VulkanEngine::init()
     init_Sync_Structures();
 
     init_Descriptors();
+
+    init_Pipelines();
 
     // everything went fine
     _isInitialized = true;
@@ -147,6 +150,7 @@ void VulkanEngine::init_Swapchain()
     //Set the Format and extent of the Allocated Image
     _drawImage._format = imageFormat;
     _drawImage._extent = { drawImageExtent.width, drawImageExtent.height };
+    _drawExtent = _drawImage._extent;
     //Set the Image Usage Flags
     VkImageUsageFlags imageUsageFlags = VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
                                         VK_IMAGE_USAGE_TRANSFER_DST_BIT |
@@ -251,6 +255,55 @@ void VulkanEngine::init_Descriptors()
     {
         GlobalDescriptorAllocator.destroy_pool(_device);
         vkDestroyDescriptorSetLayout(_device, _drawImageDescriptorSetLayout, nullptr);
+    });
+}
+
+void VulkanEngine::init_Pipelines()
+{
+    init_Pipelines_Background();
+}
+
+void VulkanEngine::init_Pipelines_Background()
+{
+    //Use Pipeline Layout Create Info to create layout for the Shader Pipeline using the Descriptor Set layout
+    VkPipelineLayoutCreateInfo pipelineCreateInfo = {};
+    pipelineCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    pipelineCreateInfo.pNext = nullptr;
+    pipelineCreateInfo.setLayoutCount = 1;
+    pipelineCreateInfo.pSetLayouts = &_drawImageDescriptorSetLayout;
+
+    VK_CHECK(vkCreatePipelineLayout(_device, &pipelineCreateInfo, nullptr, &_gradientPipelineLayout));
+
+    //Use the VKUtils to create Shader Module using the gradient shader path
+    VkShaderModule gradientShaderModule;
+    if(!vkutil::load_Shader_Module(SHADER_PATH "/gradient.comp.spv", _device, &gradientShaderModule))
+    {
+        fmt::print("Failed to load shader module at path: {}", SHADER_PATH "/gradient.comp.spv");
+        return;
+    }
+    //Create Compute Shader Pipeline using Shader stage info, and pipeline layout
+    VkPipelineShaderStageCreateInfo pipelineShaderCreateInfo = {};
+    pipelineShaderCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    pipelineShaderCreateInfo.pNext = nullptr;
+    pipelineShaderCreateInfo.stage = VK_SHADER_STAGE_COMPUTE_BIT;
+    pipelineShaderCreateInfo.module = gradientShaderModule;
+    pipelineShaderCreateInfo.pName = "main";    //Main entry point in the shader, can be used with shader with multiple entry points to determine which one to be used
+
+    VkComputePipelineCreateInfo computePipelineCreateInfo = {};
+    computePipelineCreateInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
+    computePipelineCreateInfo.pNext = nullptr;
+    computePipelineCreateInfo.stage = pipelineShaderCreateInfo;
+    computePipelineCreateInfo.layout = _gradientPipelineLayout;
+
+    VK_CHECK(vkCreateComputePipelines(_device, VK_NULL_HANDLE, 1, &computePipelineCreateInfo, nullptr, &_gradientPipeline));
+
+    //Destroy shader module, add the pipeline and pipeline layout objects to deletion queue
+    vkDestroyShaderModule(_device, gradientShaderModule, nullptr);
+
+    _mainDeletionQueue.addDeletor([&]()
+    {
+        vkDestroyPipeline(_device, _gradientPipeline, nullptr);
+        vkDestroyPipelineLayout(_device, _gradientPipelineLayout, nullptr);
     });
 }
 
@@ -405,13 +458,19 @@ void VulkanEngine::draw()
 
 void VulkanEngine::draw_Background(VkCommandBuffer cmd)
 {
-    //Create a color value for clearing the screen with flashing blue
+    //Clear the screen with a black image
     VkClearColorValue clearColor;
-    float r_Val = std::abs(std::sin(_frameNumber / 60.0f));
-    clearColor = { r_Val, 0.0f, 0.0f, 1.0f };
+    clearColor = { 0.0f, 0.0f, 0.0f, 1.0f };
     VkImageSubresourceRange image_Subresource_Range = vkinit::image_subresource_range(VK_IMAGE_ASPECT_COLOR_BIT);
     //Add the command for clearing the image got from the swapchain using the clear color generated
     vkCmdClearColorImage(cmd, _drawImage._image, VK_IMAGE_LAYOUT_GENERAL, &clearColor, 1, &image_Subresource_Range);
+
+    //Bind the Pipeline to the draw command
+    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _gradientPipeline);
+    //Bind the Descriptor Set to the draw Command
+    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _gradientPipelineLayout, 0, 1, &_drawImageDescriptors, 0, nullptr);
+    //Dispatch the Compute shader to start drawing on the Draw Image with group count to fill the screen
+    vkCmdDispatch(cmd, (uint32_t)(_drawExtent.width / 10), (uint32_t)(_drawExtent.height / 10), (uint32_t)1);
 }
 
 void VulkanEngine::run()

@@ -70,10 +70,14 @@ private:
 	void init_Commands();
 	void init_Sync_Structures();
 	void init_Descriptors();
+	void init_Pipelines();
 
 	//Swapchain Functions
 	void create_Swapchain(uint32_t width, uint32_t height);
 	void destroy_Swapchain();
+
+	//Pipeline Functions
+	void init_Pipelines_Background();
 
 	//draw loop
 	void draw();
@@ -114,4 +118,8 @@ private:
 	DescriptorAllocator GlobalDescriptorAllocator;
 	VkDescriptorSet _drawImageDescriptors;
 	VkDescriptorSetLayout _drawImageDescriptorSetLayout;
+
+	//Pipeline Variables
+	VkPipelineLayout _gradientPipelineLayout;
+	VkPipeline _gradientPipeline;
 };
