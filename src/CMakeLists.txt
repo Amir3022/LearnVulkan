@@ -34,3 +34,5 @@ if(WIN32)
     COMMAND_EXPAND_LISTS
     )
 endif()
+
+target_compile_definitions(engine PUBLIC SHADER_PATH="${PROJECT_SOURCE_DIR}/shaders")
