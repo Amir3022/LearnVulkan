@@ -46,7 +46,7 @@ void DescriptorAllocator::init_pool(VkDevice device, uint32_t maxSets, std::span
     {
         VkDescriptorPoolSize poolSize = {};
         poolSize.type = ratio.type;
-        poolSize.descriptorCount = ratio.ratio * maxSets;
+        poolSize.descriptorCount = (uint32_t)(ratio.ratio * maxSets);
 
         poolSizes.push_back(poolSize);
     }
