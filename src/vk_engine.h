@@ -87,6 +87,9 @@ private:
 	//Immediate Commands submission function
 	void submit_Immediate_Command(std::function<void(VkCommandBuffer cmd)>&& function);
 
+	//ImGui functions
+	void draw_imgui(VkCommandBuffer cmd, VkImageView targetImageView);
+	
 private:
 	//Engine Variables
 	bool _isInitialized;

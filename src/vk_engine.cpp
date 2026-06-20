@@ -70,6 +70,8 @@ void VulkanEngine::init()
 
     init_Pipelines();
 
+    init_imgui();
+
     // everything went fine
     _isInitialized = true;
 }
@@ -512,6 +514,22 @@ void VulkanEngine::submit_Immediate_Command(std::function<void(VkCommandBuffer c
     VK_CHECK(vkWaitForFences(_device, 1, &_immCmdFence, VK_TRUE, 9999999999));
 }
 
+void VulkanEngine::draw_imgui(VkCommandBuffer cmd, VkImageView targetImageView)
+{
+    //Create Render Attachment info and Render info to start rendering imgui on Swapchain imageview
+    VkRenderingAttachmentInfo imguiRenderAttachmentInfo = vkinit::attachment_info(targetImageView, nullptr, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+    VkRenderingInfo imguiRenderingInfo = vkinit::rendering_info(_swapchainImageExtent2D, &imguiRenderAttachmentInfo, nullptr);
+
+    //Start rendering command
+    vkCmdBeginRendering(cmd, &imguiRenderingInfo);
+
+    //draw Imgui on swapchain view using ImGui Vulkan Implementation
+    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmd, nullptr);
+
+    //End rendering Command
+    vkCmdEndRendering(cmd);
+}
+
 void VulkanEngine::draw()
 {
     //Wait for the Render Fence to finish executing the current command in the Buffer, then reset it
@@ -553,8 +571,14 @@ void VulkanEngine::draw()
     //Copy the drawImage onto the Swapchain Image
     vkutil::copy_Image_to_Image(cmd, _drawImage._image, _swapchain_Images[swapchainImageIndex], _drawImage._extent, _swapchainImageExtent2D);
 
-    //Transition the Swapchain Image to Presentable layout which can be displayed on the screen
-    vkutil::transition_Image(cmd, _swapchain_Images[swapchainImageIndex], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+    //Transition the Swapchain Image to Color Attachment, so we can draw ImGui on it
+    vkutil::transition_Image(cmd, _swapchain_Images[swapchainImageIndex], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+
+    //Draw the ImGui window on the swapchain image view
+    draw_imgui(cmd, _swapchain_Image_Views[swapchainImageIndex]);
+
+    //Transition the swapchain Image to Presentable layout so it can be displayed on the window
+    vkutil::transition_Image(cmd, _swapchain_Images[swapchainImageIndex], VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
 
     //End the command buffer, no more commands will be added
     VK_CHECK(vkEndCommandBuffer(cmd));
