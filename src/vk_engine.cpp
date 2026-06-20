@@ -8,6 +8,11 @@
 #include <vk_images.h>
 #include <vk_pipelines.h>
 
+//Headers for Imgui
+#include "imgui.h"
+#include "imgui_impl_sdl2.h"
+#include "imgui_impl_vulkan.h"
+
 #include "VkBootstrap.h"
 
 #include <chrono>
@@ -287,7 +292,75 @@ void VulkanEngine::init_Pipelines()
 
 void VulkanEngine::init_imgui()
 {
-    //TODO - Fill with imgui initialization
+    //Create Descriptor Set Pool for ImGui
+    //  the size of the pool is very oversize, but it's copied from imgui demo
+	//  itself.
+	std::vector<VkDescriptorPoolSize> pool_sizes = 
+    { 
+        { VK_DESCRIPTOR_TYPE_SAMPLER, 1000 },
+		{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000 },
+		{ VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000 },
+		{ VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000 },
+		{ VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000 },
+		{ VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000 },
+		{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000 },
+		{ VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000 },
+		{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000 },
+		{ VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000 },
+		{ VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000 } 
+    };
+
+    VkDescriptorPoolCreateInfo imguiDescriptorPoolCreateInfo = {};
+    imguiDescriptorPoolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    imguiDescriptorPoolCreateInfo.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
+    imguiDescriptorPoolCreateInfo.pNext = nullptr;
+    imguiDescriptorPoolCreateInfo.maxSets = 1000; //Probably an overkill, copied from Imgui vulkan demo
+    imguiDescriptorPoolCreateInfo.poolSizeCount = (uint32_t)pool_sizes.size();
+    imguiDescriptorPoolCreateInfo.pPoolSizes = pool_sizes.data();
+
+    VkDescriptorPool imguiDescriptorPool;
+    VK_CHECK(vkCreateDescriptorPool(_device, &imguiDescriptorPoolCreateInfo, nullptr, &imguiDescriptorPool));
+
+    //Initialize ImGui
+    //Init ImGui engine
+    ImGui::CreateContext();
+
+    //Init ImGui for SDL
+    ImGui_ImplSDL2_InitForVulkan(_window);
+
+    //Init ImGui for Vulkan
+    //Creat ImGui Implement Vulkan Info
+    ImGui_ImplVulkan_InitInfo imguiVulkanInitInfo = {};
+    imguiVulkanInitInfo.Instance = _instance;
+    imguiVulkanInitInfo.PhysicalDevice = _physicalDevice;
+    imguiVulkanInitInfo.Device = _device;
+    imguiVulkanInitInfo.QueueFamily = _commandsQueueFamilyIndex;
+    imguiVulkanInitInfo.Queue = _commandsQueue;
+    imguiVulkanInitInfo.DescriptorPool = imguiDescriptorPool;
+    imguiVulkanInitInfo.MinImageCount = 3;
+    imguiVulkanInitInfo.ImageCount = 3;
+    imguiVulkanInitInfo.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
+    //Add options for dynamic rendering
+    imguiVulkanInitInfo.UseDynamicRendering = true;
+    imguiVulkanInitInfo.PipelineRenderingCreateInfo =
+    {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO,
+        .pNext = nullptr,
+        .colorAttachmentCount = 1,
+        .pColorAttachmentFormats = &_swapchainImageFormat
+    };
+
+    ImGui_ImplVulkan_Init(&imguiVulkanInitInfo);
+
+    //Init ImGui font textures for Vulkan
+    ImGui_ImplVulkan_CreateFontsTexture();  //No need to call deletion for the created Textures, since it's already handled by this function
+
+    //Shutdown ImGui, and Add the Created Descriptor Pool to deletion queue
+    _mainDeletionQueue.addDeletor([=]()
+    {
+       ImGui_ImplVulkan_Shutdown();
+       vkDestroyDescriptorPool(_device, imguiDescriptorPool, nullptr); 
+    });
 }
 
 void VulkanEngine::init_Pipelines_Background()
