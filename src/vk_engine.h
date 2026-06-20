@@ -71,6 +71,7 @@ private:
 	void init_Sync_Structures();
 	void init_Descriptors();
 	void init_Pipelines();
+	void init_imgui();
 
 	//Swapchain Functions
 	void create_Swapchain(uint32_t width, uint32_t height);
@@ -82,6 +83,9 @@ private:
 	//draw loop
 	void draw();
 	void draw_Background(VkCommandBuffer cmd);
+
+	//Immediate Commands submission function
+	void submit_Immediate_Command(std::function<void(VkCommandBuffer cmd)>&& function);
 
 private:
 	//Engine Variables
@@ -113,6 +117,11 @@ private:
 	std::array<FrameData, FRAME_COUNT> _frames;
 	VkQueue _commandsQueue;
 	uint32_t _commandsQueueFamilyIndex;
+
+	//Immediate Commands Variables
+	VkCommandPool _immCmdPool;
+	VkCommandBuffer _immCmdBuffer;
+	VkFence _immCmdFence;
 
 	//Descriptor Variables
 	DescriptorAllocator GlobalDescriptorAllocator;

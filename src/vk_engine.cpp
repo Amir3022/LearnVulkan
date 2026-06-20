@@ -196,6 +196,19 @@ void VulkanEngine::init_Commands()
 
         VK_CHECK(vkAllocateCommandBuffers(_device, &commandBufferAllocatorInfo, &_frames[i]._mainCommandBuffer));
     }
+
+    //Initialize the Command Pool for Immediate commands, use it to allocate immediate commands buffer
+    VK_CHECK(vkCreateCommandPool(_device, &commandPoolCreateInfo, nullptr, &_immCmdPool));
+
+    VkCommandBufferAllocateInfo immCmdBufferAllocateInfo = vkinit::command_buffer_allocate_info(_immCmdPool, 1);
+
+    VK_CHECK(vkAllocateCommandBuffers(_device, &immCmdBufferAllocateInfo, &_immCmdBuffer));
+
+    //Add the Created Pool to Deletion Queue, destroying the pool will destroy any buffer it allocated
+    _mainDeletionQueue.addDeletor([=]()
+    {
+        vkDestroyCommandPool(_device, _immCmdPool, nullptr);
+    });
 }
 
 void VulkanEngine::init_Sync_Structures()
@@ -211,6 +224,15 @@ void VulkanEngine::init_Sync_Structures()
 
         VK_CHECK(vkCreateFence(_device, &fence_Create_Info, nullptr, &_frames[i]._renderFence));
     }
+
+    //Create Fence for the Immediate Command to halt all CPU execution while the immediate command is being processed on GPU
+    VK_CHECK(vkCreateFence(_device, &fence_Create_Info, nullptr, &_immCmdFence));
+
+    //Add the imm fence to deletion queue
+    _mainDeletionQueue.addDeletor([=]()
+    {
+        vkDestroyFence(_device, _immCmdFence, nullptr);
+    });
 }
 
 void VulkanEngine::init_Descriptors()
@@ -261,6 +283,11 @@ void VulkanEngine::init_Descriptors()
 void VulkanEngine::init_Pipelines()
 {
     init_Pipelines_Background();
+}
+
+void VulkanEngine::init_imgui()
+{
+    //TODO - Fill with imgui initialization
 }
 
 void VulkanEngine::init_Pipelines_Background()
@@ -378,6 +405,38 @@ void VulkanEngine::cleanup()
 
     // clear engine pointer
     loadedEngine = nullptr;
+}
+
+void VulkanEngine::submit_Immediate_Command(std::function<void(VkCommandBuffer cmd)> &&function)
+{
+    //For simplicity assign the immediate submit command handle to simpler variable
+    VkCommandBuffer cmd = _immCmdBuffer;
+
+    //Reset The immediate command buffer and fence to begin adding new commands
+    VK_CHECK(vkResetFences(_device, 1, &_immCmdFence));
+    VK_CHECK(vkResetCommandBuffer(cmd, 0));
+
+    //Create Command Buffer Begin
+    VkCommandBufferBeginInfo immCmdBufferBeginInfo = vkinit::command_buffer_begin_info(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);    //Use this flag to tell Vulkan this command buffer is for one time use, good for optimization
+    VK_CHECK(vkBeginCommandBuffer(cmd, &immCmdBufferBeginInfo));
+
+    //Use the function to call the immediate commands to be added to the buffer
+    function(cmd);
+
+    //End the Command buffer, no new commands to be added
+    VK_CHECK(vkEndCommandBuffer(cmd));
+
+    //Create Buffer Submit Info to submit the buffer to commands queue
+    VkCommandBufferSubmitInfo immCmdBufferSubmitInfo = vkinit::command_buffer_submit_info(cmd);
+
+    //Use Submit info with no signal or wait semaphore used
+    VkSubmitInfo2 immCommandSubmitInfo = vkinit::submit_info(&immCmdBufferSubmitInfo, nullptr, nullptr);
+
+    //Submit the Command Buffer
+    VK_CHECK(vkQueueSubmit2(_commandsQueue, 1, &immCommandSubmitInfo, _immCmdFence));
+
+    //Wait for the Immediate Command to be executed in the Command Queue
+    VK_CHECK(vkWaitForFences(_device, 1, &_immCmdFence, VK_TRUE, 9999999999));
 }
 
 void VulkanEngine::draw()
