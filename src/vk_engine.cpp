@@ -367,22 +367,31 @@ void VulkanEngine::init_imgui()
 
 void VulkanEngine::init_Pipelines_Background()
 {
+    //Use the VKUtils to create Shader Module using the gradient shader path
+    VkShaderModule gradientShaderModule;
+    if(!vkutil::load_Shader_Module(SHADER_PATH "/gradient_color.comp.spv", _device, &gradientShaderModule))
+    {
+        fmt::print("Failed to load shader module at path: {}", SHADER_PATH "/gradient.comp.spv");
+        return;
+    }
+
+    //Initialize Push Constants Range
+    VkPushConstantRange pushConstantRange = {};
+    pushConstantRange.offset = 0;
+    pushConstantRange.size = sizeof(ComputePushConstants);
+    pushConstantRange.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+
     //Use Pipeline Layout Create Info to create layout for the Shader Pipeline using the Descriptor Set layout
     VkPipelineLayoutCreateInfo pipelineCreateInfo = {};
     pipelineCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     pipelineCreateInfo.pNext = nullptr;
     pipelineCreateInfo.setLayoutCount = 1;
     pipelineCreateInfo.pSetLayouts = &_drawImageDescriptorSetLayout;
+    pipelineCreateInfo.pushConstantRangeCount = 1;
+    pipelineCreateInfo.pPushConstantRanges = &pushConstantRange;
 
     VK_CHECK(vkCreatePipelineLayout(_device, &pipelineCreateInfo, nullptr, &_gradientPipelineLayout));
 
-    //Use the VKUtils to create Shader Module using the gradient shader path
-    VkShaderModule gradientShaderModule;
-    if(!vkutil::load_Shader_Module(SHADER_PATH "/gradient.comp.spv", _device, &gradientShaderModule))
-    {
-        fmt::print("Failed to load shader module at path: {}", SHADER_PATH "/gradient.comp.spv");
-        return;
-    }
     //Create Compute Shader Pipeline using Shader stage info, and pipeline layout
     VkPipelineShaderStageCreateInfo pipelineShaderCreateInfo = {};
     pipelineShaderCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -625,6 +634,13 @@ void VulkanEngine::draw_Background(VkCommandBuffer cmd)
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _gradientPipeline);
     //Bind the Descriptor Set to the draw Command
     vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _gradientPipelineLayout, 0, 1, &_drawImageDescriptors, 0, nullptr);
+
+    //Create Instance of the Push Constants struct, and it to the command buffer
+    ComputePushConstants pc;
+    pc.data1 = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
+    pc.data2 = glm::vec4(0.0f, 1.0f, 0.0f, 1.0f);
+    vkCmdPushConstants(cmd, _gradientPipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(ComputePushConstants), &pc);
+
     //Dispatch the Compute shader to start drawing on the Draw Image with group count to fill the screen
     vkCmdDispatch(cmd, (uint32_t)(_drawExtent.width / 10), (uint32_t)(_drawExtent.height / 10), (uint32_t)1);
 }
