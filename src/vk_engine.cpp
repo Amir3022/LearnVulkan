@@ -613,7 +613,8 @@ void VulkanEngine::run()
     // main loop
     while (!bQuit) {
         // Handle events on queue
-        while (SDL_PollEvent(&e) != 0) {
+        while (SDL_PollEvent(&e) != 0)
+        {
             // close the window when user alt-f4s or clicks the X button
             if (e.type == SDL_QUIT)
                 bQuit = true;
@@ -637,6 +638,9 @@ void VulkanEngine::run()
                     bQuit = true;
                 }
             }
+
+            //Process SDL poll events on ImGui as well
+            ImGui_ImplSDL2_ProcessEvent(&e);
         }
 
         // do not draw if we are minimized
@@ -645,6 +649,17 @@ void VulkanEngine::run()
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
             continue;
         }
+
+        //Start a new ImGui frame
+        ImGui_ImplVulkan_NewFrame();
+        ImGui_ImplSDL2_NewFrame();
+        ImGui::NewFrame();
+
+        //Show the Demo ImGui Scene
+        ImGui::ShowDemoWindow();
+
+        //Render the ImGui window
+        ImGui::Render();
 
         draw();
     }
