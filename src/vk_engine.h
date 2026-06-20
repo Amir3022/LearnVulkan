@@ -134,4 +134,6 @@ private:
 	//Pipeline Variables
 	VkPipelineLayout _gradientPipelineLayout;
 	VkPipeline _gradientPipeline;
+	std::vector<ComputeEffect> backgroundEffects;
+	int currentActiveBackgroundEffect;
 };

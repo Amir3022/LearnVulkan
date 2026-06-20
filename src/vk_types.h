@@ -46,3 +46,11 @@ struct ComputePushConstants
     glm::vec4 data3;
     glm::vec4 data4;
 };
+
+struct ComputeEffect
+{
+    std::string name;
+    VkPipeline pipeline;
+    VkPipelineLayout pipelineLayout;
+    ComputePushConstants pc_data;
+};
