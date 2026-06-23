@@ -6,3 +6,4 @@
 
 *.spv
 imgui.ini
+*.code-workspace
