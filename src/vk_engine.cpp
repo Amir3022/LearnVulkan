@@ -7,6 +7,7 @@
 #include <vk_initializers.h>
 #include <vk_images.h>
 #include <vk_pipelines.h>
+#include "draw_functions.h"
 
 //Headers for Imgui
 #include "imgui.h"
@@ -614,8 +615,8 @@ void VulkanEngine::draw()
     //Transition the Swapchain Image to Color Attachment, so we can draw ImGui on it
     vkutil::transition_Image(cmd, _swapchain_Images[swapchainImageIndex], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 
-    //Draw the ImGui window on the swapchain image view
-    draw_imgui(cmd, _swapchain_Image_Views[swapchainImageIndex]);
+    // //Draw the ImGui window on the swapchain image view
+    // draw_imgui(cmd, _swapchain_Image_Views[swapchainImageIndex]);
 
     //Transition the swapchain Image to Presentable layout so it can be displayed on the window
     vkutil::transition_Image(cmd, _swapchain_Images[swapchainImageIndex], VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
@@ -656,23 +657,13 @@ void VulkanEngine::draw_Background(VkCommandBuffer cmd)
 {
     //Clear the screen with a black image
     VkClearColorValue clearColor;
-    clearColor = { 0.0f, 0.0f, 0.0f, 1.0f };
-    VkImageSubresourceRange image_Subresource_Range = vkinit::image_subresource_range(VK_IMAGE_ASPECT_COLOR_BIT);
-    //Add the command for clearing the image got from the swapchain using the clear color generated
-    vkCmdClearColorImage(cmd, _drawImage._image, VK_IMAGE_LAYOUT_GENERAL, &clearColor, 1, &image_Subresource_Range);
+    clearColor = {0.0f, 0.0f, 0.0f, 1.0f};
+    draw_functions::draw_Clear_Background(cmd, clearColor, _drawImage._image);
 
-    //Get the Selected Background effect
-    ComputeEffect& backgroundEffect = backgroundEffects[currentActiveBackgroundEffect];
-    //Bind the Pipeline to the draw command
-    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, backgroundEffect.pipeline);
-    //Bind the Descriptor Set to the draw Command
-    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _gradientPipelineLayout, 0, 1, &_drawImageDescriptors, 0, nullptr);
-
-    //Push Constants from selected compute effect constant data
-    vkCmdPushConstants(cmd, _gradientPipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(ComputePushConstants), &backgroundEffect.pc_data);
-
-    //Dispatch the Compute shader to start drawing on the Draw Image with group count to fill the screen
-    vkCmdDispatch(cmd, (uint32_t)(_drawExtent.width / 10), (uint32_t)(_drawExtent.height / 10), (uint32_t)1);
+    // //Get the Selected Background effect
+    // ComputeEffect& backgroundEffect = backgroundEffects[currentActiveBackgroundEffect];
+    // //Draw the Selected background effect using compute shader
+    // draw_functions::draw_BackgroundEffects(cmd, backgroundEffect, _gradientPipelineLayout, _drawImageDescriptors, _drawExtent);
 }
 
 void VulkanEngine::run()

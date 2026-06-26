@@ -18,6 +18,8 @@ add_executable (engine
   vk_types.cpp
   camera.cpp
   camera.h
+  draw_functions.cpp
+  draw_functions.h
 )
 
 set_property(TARGET engine PROPERTY CXX_STANDARD 20)
