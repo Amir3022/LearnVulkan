@@ -72,6 +72,7 @@ private:
 	void init_Descriptors();
 	void init_Pipelines();
 	void init_imgui();
+	void init_triangle_Pipeline();
 
 	//Swapchain Functions
 	void create_Swapchain(uint32_t width, uint32_t height);
@@ -83,6 +84,9 @@ private:
 	//draw loop
 	void draw();
 	void draw_Background(VkCommandBuffer cmd);
+
+	//Draw Geometry functions
+	void draw_Geometry(VkCommandBuffer cmd);
 
 	//Immediate Commands submission function
 	void submit_Immediate_Command(std::function<void(VkCommandBuffer cmd)>&& function);
@@ -131,9 +135,13 @@ private:
 	VkDescriptorSet _drawImageDescriptors;
 	VkDescriptorSetLayout _drawImageDescriptorSetLayout;
 
-	//Pipeline Variables
+	//Compute Pipeline Variables
 	VkPipelineLayout _gradientPipelineLayout;
 	VkPipeline _gradientPipeline;
 	std::vector<ComputeEffect> backgroundEffects;
 	int currentActiveBackgroundEffect;
+	
+	//Render Pipeline Variables
+	VkPipelineLayout _trianglePipelineLayout;
+	VkPipeline _trianglePipeline;
 };
