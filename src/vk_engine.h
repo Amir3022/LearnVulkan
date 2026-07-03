@@ -93,6 +93,9 @@ private:
 
 	//ImGui functions
 	void draw_imgui(VkCommandBuffer cmd, VkImageView targetImageView);
+
+	//Buffer Functions
+	AllocatedBuffer createBuffer(size_t bufferSize, VkBufferUsageFlags bufferUsage, VmaMemoryUsage memoryUsage);
 	
 private:
 	//Engine Variables

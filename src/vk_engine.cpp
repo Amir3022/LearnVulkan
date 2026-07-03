@@ -830,3 +830,22 @@ void VulkanEngine::run()
         draw();
     }
 }
+
+AllocatedBuffer VulkanEngine::createBuffer(size_t bufferSize, VkBufferUsageFlags bufferUsage, VmaMemoryUsage memoryUsage)
+{
+    //Create Buffer Create Info
+    VkBufferCreateInfo bufferInfo = {.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
+    bufferInfo.pNext = nullptr;
+    bufferInfo.usage = bufferUsage;
+    bufferInfo.size = bufferSize;
+
+    //Create VMA Allocation Create Info
+    VmaAllocationCreateInfo allocationCreateInfo = {};
+    allocationCreateInfo.usage = memoryUsage;
+    allocationCreateInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
+
+    //Use Buffer Info and Allocation Info to create buffer and allocate Memory to it
+    AllocatedBuffer newBuffer;
+    VK_CHECK(vmaCreateBuffer(_allocator, &bufferInfo, &allocationCreateInfo, &newBuffer.buffer, &newBuffer.allocation, &newBuffer.allocationInfo));
+    return newBuffer;
+}
