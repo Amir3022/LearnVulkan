@@ -54,3 +54,11 @@ struct ComputeEffect
     VkPipelineLayout pipelineLayout;
     ComputePushConstants pc_data;
 };
+
+//Allocated Memory for buffer
+struct AllocatedBuffer
+{
+    VkBuffer buffer;
+    VmaAllocation allocation;
+    VmaAllocationInfo allocationInfo;
+};
