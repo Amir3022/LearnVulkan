@@ -75,7 +75,7 @@ void VulkanEngine::init()
 
     init_imgui();
 
-    init_triangle_Pipeline();
+    init_Default_Values();
 
     // everything went fine
     _isInitialized = true;
@@ -294,7 +294,12 @@ void VulkanEngine::init_Descriptors()
 
 void VulkanEngine::init_Pipelines()
 {
+    //Compute Pipelines
     init_Pipelines_Background();
+
+    //Graphics Pipelines
+    init_triangle_Pipeline();
+    init_mesh_Pipeline();
 }
 
 void VulkanEngine::init_imgui()
@@ -419,6 +424,58 @@ void VulkanEngine::init_triangle_Pipeline()
     {
         vkDestroyPipeline(_device, _trianglePipeline, nullptr);
         vkDestroyPipelineLayout(_device, _trianglePipelineLayout, nullptr);
+    });
+}
+
+void VulkanEngine::init_mesh_Pipeline()
+{
+    //Create 2 Shader modules for the vertex and fragment shader
+    VkShaderModule vertexShader;
+    if(!vkutil::load_Shader_Module(SHADER_PATH "/colored_mesh.vert.spv", _device, &vertexShader))
+    {
+        fmt::println("Failed to load vertex Shader: {}", SHADER_PATH "/colored_mesh.vert.spv");
+        return;
+    }
+    VkShaderModule fragShader;
+    if(!vkutil::load_Shader_Module(SHADER_PATH "/colored_triangle.frag.spv", _device, &fragShader))
+    {
+        fmt::println("Failed to load fragment Shader: {}", SHADER_PATH "/colored_triangle.frag.spv");
+        return;
+    }
+
+    //Create Pipeline Builder, fill it's parameter to create the graphics pipeline
+    PipelineBuilder graphicsPipelineBuilder;
+    graphicsPipelineBuilder.addShaderStages(vertexShader, fragShader);
+    graphicsPipelineBuilder.setInputTopology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
+    graphicsPipelineBuilder.SetPolygonMode(VK_POLYGON_MODE_FILL);
+    graphicsPipelineBuilder.SetCullingMode(VK_CULL_MODE_NONE, VK_FRONT_FACE_CLOCKWISE); //Don't cull any face, and set the orientation clockwise (LHO)
+    graphicsPipelineBuilder.setMultisampleNone();
+    graphicsPipelineBuilder.disableDepthTest();
+    graphicsPipelineBuilder.disableBlending();
+    graphicsPipelineBuilder.setColorAttachmentFormat(_drawImage._format);
+    graphicsPipelineBuilder.setDepthFormat(VK_FORMAT_UNDEFINED);
+    //Create Pipeline layout using initializer info, and set it in the pipeline builder
+    VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = vkinit::pipeline_layout_create_info();
+    VK_CHECK(vkCreatePipelineLayout(_device, &pipelineLayoutCreateInfo, nullptr, &_meshPipelineLayout));
+    graphicsPipelineBuilder._pipelineLayout = _meshPipelineLayout; 
+
+    //use the Builder to create the pipeline
+    _meshPipeline = graphicsPipelineBuilder.build_pipeline(_device);
+    if(_meshPipeline == VK_NULL_HANDLE)
+    {
+        fmt::println("Failed to create mesh draw pipeline, using null handle");
+        return;
+    }
+
+    //Destroy the created shader modules
+    vkDestroyShaderModule(_device, vertexShader, nullptr);
+    vkDestroyShaderModule(_device, fragShader, nullptr);
+
+    //Add the created triangle pipeline layout and pipeline to deletion queue
+    _mainDeletionQueue.addDeletor([=]()
+    {
+        vkDestroyPipeline(_device, _meshPipeline, nullptr);
+        vkDestroyPipelineLayout(_device, _meshPipelineLayout, nullptr);
     });
 }
 
@@ -753,7 +810,20 @@ void VulkanEngine::draw_Geometry(VkCommandBuffer cmd)
     vkCmdSetScissor(cmd, 0, 1, &scissor);
 
     //Launch draw command to draw 3 vertices
-    vkCmdDraw(cmd, 3, 1, 0, 0);
+    //vkCmdDraw(cmd, 3, 1, 0, 0);
+
+    //Bind the Pipeline to draw the mesh
+    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _meshPipeline);
+
+    //Create the push constants needed to draw the mesh
+    GPUDrawPushConstants drawPushConstants = {};
+    drawPushConstants.worldTransform = glm::mat4(1.0f);
+    drawPushConstants.vertexBufferDeviceAddress = _meshBuffers.vertexBufferDeviceAddress;
+    vkCmdPushConstants(cmd, _meshPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(GPUDrawPushConstants), &drawPushConstants);
+    //Bind the Indices Buffer
+    vkCmdBindIndexBuffer(cmd, _meshBuffers.indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
+    //Launch indexed draw command to draw 4 vertices forming a square
+    vkCmdDrawIndexed(cmd, 6, 1, 0, 0, 0);
 
     //End rendering command
     vkCmdEndRendering(cmd);
@@ -848,4 +918,89 @@ AllocatedBuffer VulkanEngine::createBuffer(size_t bufferSize, VkBufferUsageFlags
     AllocatedBuffer newBuffer;
     VK_CHECK(vmaCreateBuffer(_allocator, &bufferInfo, &allocationCreateInfo, &newBuffer.buffer, &newBuffer.allocation, &newBuffer.allocationInfo));
     return newBuffer;
+}
+
+void VulkanEngine::destroyBuffer(const AllocatedBuffer &buffer)
+{
+    vmaDestroyBuffer(_allocator, buffer.buffer, buffer.allocation);
+}
+
+GPUMeshBuffers VulkanEngine::uploadMesh(std::span<Vertex> vertices, std::span<uint32_t> indices)
+{
+    //Get the Sizes of both buffers and use them to create the buffer using createBuffer Function
+    size_t vertexBufferSize = vertices.size() * sizeof(Vertex);
+    size_t indicesBufferSize = indices.size() * sizeof(uint32_t);
+
+    GPUMeshBuffers newSurfaceBuffers;
+    //Create Buffer using flags for storage (since we will make the vertex buffer a storage buffer object), destination flag(since we will memcpy from staging buffer), device address
+    //Set memory usage to GPU only, since we won't be reading data from main program only on shaders
+    newSurfaceBuffers.vertexBuffer = createBuffer(vertexBufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, VMA_MEMORY_USAGE_GPU_ONLY);
+    
+    //Init Buffer Device Address info to get the Device address of created vertex buffer
+    VkBufferDeviceAddressInfo deviceAddressInfo = {.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO, .buffer = newSurfaceBuffers.vertexBuffer.buffer};
+    newSurfaceBuffers.vertexBufferDeviceAddress = vkGetBufferDeviceAddress(_device, &deviceAddressInfo);
+
+    //Create Index Buffer using Index Flag, destination Flag
+    newSurfaceBuffers.indexBuffer = createBuffer(indicesBufferSize, VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VMA_MEMORY_USAGE_GPU_ONLY);
+
+    //Create Staging Buffer being able to read from CPU to copy buffer to GPUMeshBuffers
+    AllocatedBuffer stagingBuffer = createBuffer(vertexBufferSize + indicesBufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY);
+
+    char* stagingBufferData = (char*)stagingBuffer.allocationInfo.pMappedData;
+
+    //Copy data from Vertex and Index arrays to staging Buffer Data
+    memcpy(stagingBufferData, vertices.data(), vertexBufferSize);
+    memcpy(stagingBufferData + vertexBufferSize, indices.data(), indicesBufferSize);
+
+    //Use Immediate Command to Copy the Data from staging buffer to appropriate buffers
+    submit_Immediate_Command([&](VkCommandBuffer cmd)
+    {
+        VkBufferCopy vertexBufferCopy = {};
+        vertexBufferCopy.srcOffset = 0;
+        vertexBufferCopy.dstOffset = 0;
+        vertexBufferCopy.size = vertexBufferSize;
+        vkCmdCopyBuffer(cmd, stagingBuffer.buffer, newSurfaceBuffers.vertexBuffer.buffer, 1, &vertexBufferCopy);
+
+        VkBufferCopy indexBufferCopy = {};
+        indexBufferCopy.srcOffset = vertexBufferSize;
+        indexBufferCopy.dstOffset = 0;
+        indexBufferCopy.size = indicesBufferSize;
+        vkCmdCopyBuffer(cmd, stagingBuffer.buffer, newSurfaceBuffers.indexBuffer.buffer, 1, &indexBufferCopy);
+    });
+
+    //Destroy The created staging buffer
+    destroyBuffer(stagingBuffer);
+
+    return newSurfaceBuffers;
+}
+
+//Function used to init the Values for the Vertex and Index buffer for the drawn mesh (Default Values)
+void VulkanEngine::init_Default_Values()
+{
+    //Initial values for the Vertex and Index buffers
+    std::vector<Vertex> vertices = 
+    {
+        {.position = glm::vec3(0.5f, -0.5f, 0.0f), .color = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f)},     //0
+        {.position = glm::vec3(0.5f, 0.5f, 0.0f), .color = glm::vec4(0.0f, 1.0f, 0.0f, 1.0f)},      //1
+        {.position = glm::vec3(-0.5f, -0.5f, 0.0f), .color = glm::vec4(0.0f, 0.0f, 1.0f, 1.0f)},    //2
+        {.position = glm::vec3(-0.5f, 0.5f, 0.0f), .color = glm::vec4(1.0f, 1.0f, 0.0f, 1.0f)},     //3
+    };
+
+    std::array<uint32_t, 6> indices = 
+    {
+        //First Triangle
+        0, 1, 2,
+        //Second Triangle
+        2, 1, 3
+    };
+
+    //use the Containers to create mesh Draw Buffers
+    _meshBuffers = uploadMesh(vertices, indices);
+
+    //Add both buffers to deletion queue
+    _mainDeletionQueue.addDeletor([&]()
+    {
+       destroyBuffer(_meshBuffers.vertexBuffer);
+       destroyBuffer(_meshBuffers.indexBuffer); 
+    });
 }

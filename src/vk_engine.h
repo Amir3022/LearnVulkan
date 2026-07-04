@@ -73,6 +73,7 @@ private:
 	void init_Pipelines();
 	void init_imgui();
 	void init_triangle_Pipeline();
+	void init_mesh_Pipeline();
 
 	//Swapchain Functions
 	void create_Swapchain(uint32_t width, uint32_t height);
@@ -96,6 +97,11 @@ private:
 
 	//Buffer Functions
 	AllocatedBuffer createBuffer(size_t bufferSize, VkBufferUsageFlags bufferUsage, VmaMemoryUsage memoryUsage);
+	void destroyBuffer(const AllocatedBuffer& buffer);
+
+	//Mesh Draw Functions
+	GPUMeshBuffers uploadMesh(std::span<Vertex> vertices, std::span<uint32_t> indices);
+	void init_Default_Values();
 	
 private:
 	//Engine Variables
@@ -147,4 +153,9 @@ private:
 	//Render Pipeline Variables
 	VkPipelineLayout _trianglePipelineLayout;
 	VkPipeline _trianglePipeline;
+
+	//Mesh Render variables
+	VkPipelineLayout _meshPipelineLayout;
+	VkPipeline _meshPipeline;
+	GPUMeshBuffers _meshBuffers;
 };
