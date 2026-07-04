@@ -62,3 +62,26 @@ struct AllocatedBuffer
     VmaAllocation allocation;
     VmaAllocationInfo allocationInfo;
 };
+
+//GPU Mesh Draw Types
+struct Vertex
+{
+    glm::vec3 position;
+    float uv_x;
+    glm::vec3 normal;
+    float uv_y;
+    glm::vec4 color;
+};
+
+struct GPUMeshBuffers
+{
+    AllocatedBuffer vertexBuffer;
+    AllocatedBuffer indexBuffer;
+    VkDeviceAddress vertexBufferDeviceAddress;
+};
+
+struct GPUDrawPushConstants
+{
+    glm::mat4 worldTransform;
+    VkDeviceAddress vertexBufferDeviceAddress;
+};
