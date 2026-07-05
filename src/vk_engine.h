@@ -130,6 +130,7 @@ private:
 	std::vector<VkImage> _swapchain_Images;
 	std::vector<VkImageView> _swapchain_Image_Views;
 	AllocatedImage _drawImage;	//Image used to draw on before writing on the swapchain acquired image, giving us more freedom to the operations we can do
+	AllocatedImage _depthImage; //Image used for depth testing
 	VkExtent2D _drawExtent;
 
 	//Commands Variables

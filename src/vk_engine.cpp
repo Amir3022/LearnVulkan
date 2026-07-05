@@ -15,6 +15,9 @@
 #include "imgui_impl_sdl2.h"
 #include "imgui_impl_vulkan.h"
 
+//Headers from GLM
+#include <glm/gtx/transform.hpp> 
+
 #include "VkBootstrap.h"
 
 #include <chrono>
@@ -186,14 +189,30 @@ void VulkanEngine::init_Swapchain()
     VkImageViewCreateInfo imageViewCreateInfo = vkinit::imageview_create_info(imageFormat, _drawImage._image, VK_IMAGE_ASPECT_COLOR_BIT);
     VK_CHECK(vkCreateImageView(_device, &imageViewCreateInfo, nullptr, &_drawImage._imageView));
 
+    //Create Depth Image with it's allocation
+    imageFormat = VK_FORMAT_D32_SFLOAT; //Depth will consist of a single float variable
+    _depthImage._format = imageFormat;
+    _depthImage._extent = _drawExtent;
+    //Set the depth image usage flags to be used as depth attachment
+    imageUsageFlags = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+    //Create image creation info
+    imageCreateInfo = vkinit::image_create_info(imageFormat, imageUsageFlags, drawImageExtent);
+    //Use same vma alloaction create info to create depth image allocation
+    vmaCreateImage(_allocator, &imageCreateInfo, &allocationCreateInfo, &_depthImage._image, &_depthImage._allocation, nullptr);
+    //Create Depth Image View
+    imageViewCreateInfo = vkinit::imageview_create_info(imageFormat, _depthImage._image, VK_IMAGE_ASPECT_DEPTH_BIT);
+    VK_CHECK(vkCreateImageView(_device, &imageViewCreateInfo, nullptr, &_depthImage._imageView));
+
     //Add destructors for created Image and ImageView to main deletion Queue (Image View First, since it was last created)
     _mainDeletionQueue.addDeletor([&]()
         {
             vkDestroyImageView(_device, _drawImage._imageView, nullptr);
+            vkDestroyImageView(_device, _depthImage._imageView, nullptr);
         });
     _mainDeletionQueue.addDeletor([&]()
         {
             vmaDestroyImage(_allocator, _drawImage._image, _drawImage._allocation);
+            vmaDestroyImage(_allocator, _depthImage._image, _depthImage._allocation);
         });
 }
 
@@ -818,9 +837,15 @@ void VulkanEngine::draw_Geometry(VkCommandBuffer cmd)
     //Bind the Pipeline to draw the mesh
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _meshPipeline);
     //Draw the third mesh from test meshes loaded from glb file
+    //Setup render matrices to render the mesh
+    glm::mat4 worldMat = glm::identity<glm::mat4>();
+    glm::mat4 viewMat = glm::identity<glm::mat4>();
+    viewMat = glm::translate(viewMat, glm::vec3(0.0f, 0.0f, -5.0f));
+    glm::mat4 projection = glm::perspective(glm::radians(45.0f), (float)_drawExtent.width / (float)_drawExtent.height, 10000.0f, 0.1f); //We are making the near plane the large value, so near place is at 1 and far plane at 0, this greatly increases depth calc accuracy
+    projection[1][1] *= -1; //flip the scale in y direction to make the mesh in the correct orientation
     //Create the push constants needed to draw the mesh
     GPUDrawPushConstants drawPushConstants = {};
-    drawPushConstants.worldTransform = glm::mat4(1.0f);
+    drawPushConstants.worldTransform = projection * viewMat * worldMat;
     drawPushConstants.vertexBufferDeviceAddress = _testMeshes[2].meshBuffers.vertexBufferDeviceAddress;
     vkCmdPushConstants(cmd, _meshPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(GPUDrawPushConstants), &drawPushConstants);
     //Bind the Indices Buffer
