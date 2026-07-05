@@ -63,6 +63,9 @@ public:
 	//Commands Functions
 	FrameData& GetCurrentFrameData() { return _frames[_frameNumber % FRAME_COUNT]; }
 
+	//Loading meshes Functions
+	GPUMeshBuffers uploadMesh(std::span<Vertex> vertices, std::span<uint32_t> indices);
+
 private:
 	//Initialize the Various Vulkan Components
 	void init_Vulkan();
@@ -100,7 +103,6 @@ private:
 	void destroyBuffer(const AllocatedBuffer& buffer);
 
 	//Mesh Draw Functions
-	GPUMeshBuffers uploadMesh(std::span<Vertex> vertices, std::span<uint32_t> indices);
 	void init_Default_Values();
 	
 private:
