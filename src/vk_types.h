@@ -85,3 +85,16 @@ struct GPUDrawPushConstants
     glm::mat4 worldTransform;
     VkDeviceAddress vertexBufferDeviceAddress;
 };
+
+struct GeoSurface
+{
+    uint32_t startIndex;
+    size_t count;
+};
+
+struct MeshAsset
+{
+    std::string name;
+    std::vector<GeoSurface> surfaces;
+    GPUMeshBuffers meshBuffers;
+};

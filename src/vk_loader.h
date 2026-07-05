@@ -5,20 +5,6 @@
 #include <optional>
 #include <filesystem>
 
-
-struct GeoSurface
-{
-    uint32_t startIndex;
-    size_t count;
-};
-
-struct MeshAsset
-{
-    std::string name;
-    std::vector<GeoSurface> surfaces;
-    GPUMeshBuffers meshBuffers;
-};
-
 class VulkanEngine;
 
 namespace vkutil
