@@ -823,7 +823,7 @@ void VulkanEngine::draw_Geometry(VkCommandBuffer cmd)
     //Bind the Indices Buffer
     vkCmdBindIndexBuffer(cmd, _meshBuffers.indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
     //Launch indexed draw command to draw 4 vertices forming a square
-    vkCmdDrawIndexed(cmd, 6, 1, 0, 0, 0);
+    vkCmdDrawIndexed(cmd, _meshBuffers.indexBuffer.allocationInfo.size, 1, 0, 0, 0);
 
     //End rendering command
     vkCmdEndRendering(cmd);
