@@ -149,6 +149,16 @@ namespace vkutil
                         vertices[initialVertCount + idx].uv_y = uv.y;
                     });
                 }
+
+                //FOR DEBUGGING, force the normal to be the color of each vertex
+                constexpr bool bOverrideColorWithNormal = true;
+                if(bOverrideColorWithNormal)
+                {
+                    for(Vertex& vert : vertices)
+                    {
+                        vert.color = glm::vec4(vert.normal, 1.0);
+                    }
+                }
             }
             //Use the engine to upload the vertices and indices vectors, and use them to create mesh buffers
             newMeshAsset.meshBuffers = engine.uploadMesh(vertices, indices);
