@@ -100,7 +100,7 @@ namespace vkutil
                         Vertex newVtx;
                         newVtx.position = vtx_pos;
                         newVtx.normal = glm::vec3(0.0f, 0.0f, 0.0f);
-                        newVtx.color = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
+                        newVtx.color = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);
                         newVtx.uv_x = 0;
                         newVtx.uv_y = 0;
                         vertices[initialVertCount + idx] = newVtx;
