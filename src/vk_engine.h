@@ -104,6 +104,7 @@ private:
 
 	//Mesh Draw Functions
 	void init_Default_Values();
+	void init_Loaded_Mesh();
 	
 private:
 	//Engine Variables
@@ -160,4 +161,7 @@ private:
 	VkPipelineLayout _meshPipelineLayout;
 	VkPipeline _meshPipeline;
 	GPUMeshBuffers _meshBuffers;
+
+	//Loaded Mesh Variables
+	std::vector<MeshAsset> _testMeshes;
 };

@@ -7,6 +7,7 @@
 #include <vk_initializers.h>
 #include <vk_images.h>
 #include <vk_pipelines.h>
+#include <vk_loader.h>
 #include "draw_functions.h"
 
 //Headers for Imgui
@@ -76,6 +77,8 @@ void VulkanEngine::init()
     init_imgui();
 
     init_Default_Values();
+
+    init_Loaded_Mesh();
 
     // everything went fine
     _isInitialized = true;
@@ -814,16 +817,16 @@ void VulkanEngine::draw_Geometry(VkCommandBuffer cmd)
 
     //Bind the Pipeline to draw the mesh
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _meshPipeline);
-
+    //Draw the third mesh from test meshes loaded from glb file
     //Create the push constants needed to draw the mesh
     GPUDrawPushConstants drawPushConstants = {};
     drawPushConstants.worldTransform = glm::mat4(1.0f);
-    drawPushConstants.vertexBufferDeviceAddress = _meshBuffers.vertexBufferDeviceAddress;
+    drawPushConstants.vertexBufferDeviceAddress = _testMeshes[2].meshBuffers.vertexBufferDeviceAddress;
     vkCmdPushConstants(cmd, _meshPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(GPUDrawPushConstants), &drawPushConstants);
     //Bind the Indices Buffer
-    vkCmdBindIndexBuffer(cmd, _meshBuffers.indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
-    //Launch indexed draw command to draw 4 vertices forming a square
-    vkCmdDrawIndexed(cmd, _meshBuffers.indexBuffer.allocationInfo.size, 1, 0, 0, 0);
+    vkCmdBindIndexBuffer(cmd, _testMeshes[2].meshBuffers.indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
+    //Launch indexed draw command to draw the surface of the mesh
+    vkCmdDrawIndexed(cmd, _testMeshes[2].surfaces[0].count, 1, _testMeshes[2].surfaces[0].startIndex, 0, 0);
 
     //End rendering command
     vkCmdEndRendering(cmd);
@@ -1003,4 +1006,20 @@ void VulkanEngine::init_Default_Values()
        destroyBuffer(_meshBuffers.vertexBuffer);
        destroyBuffer(_meshBuffers.indexBuffer); 
     });
+}
+
+void VulkanEngine::init_Loaded_Mesh()
+{
+    //Get the test meshes using LoadMeshFromFile util funtion
+    _testMeshes = vkutil::loadMeshFromFile(*this, ASSET_PATH "/basicmesh.glb").value();
+
+    //Add buffers from each mesh to deletion queue
+    for(MeshAsset& mesh : _testMeshes)
+    {
+        _mainDeletionQueue.addDeletor([&]()
+        {
+            destroyBuffer(mesh.meshBuffers.indexBuffer);
+            destroyBuffer(mesh.meshBuffers.vertexBuffer);
+        });
+    }
 }
