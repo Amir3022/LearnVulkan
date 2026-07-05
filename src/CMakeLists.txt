@@ -38,3 +38,5 @@ if(WIN32)
 endif()
 
 target_compile_definitions(engine PUBLIC SHADER_PATH="${PROJECT_SOURCE_DIR}/shaders")
+
+target_compile_definitions(engine PUBLIC ASSET_PATH="${PROJECT_SOURCE_DIR}/assets")
