@@ -167,6 +167,20 @@ void PipelineBuilder::disableDepthTest()
     _depthStencilInfo.maxDepthBounds = 1.0f;
 }
 
+void PipelineBuilder::enableDepthTest(bool depthWriteEnable, VkCompareOp compareOp)
+{
+    //Enable Depth and stencil for the created pipeline
+    _depthStencilInfo.depthTestEnable = VK_TRUE;
+    _depthStencilInfo.depthWriteEnable = depthWriteEnable;
+    _depthStencilInfo.depthCompareOp = compareOp;
+    _depthStencilInfo.depthBoundsTestEnable = VK_FALSE;
+    _depthStencilInfo.stencilTestEnable = VK_FALSE;
+    _depthStencilInfo.front = {};
+    _depthStencilInfo.back = {};
+    _depthStencilInfo.minDepthBounds = 0.0f;
+    _depthStencilInfo.maxDepthBounds = 1.0f;
+}
+
 void PipelineBuilder::disableBlending()
 {
     //Disable blending in the color blend attachment
