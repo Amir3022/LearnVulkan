@@ -420,10 +420,11 @@ void VulkanEngine::init_triangle_Pipeline()
     graphicsPipelineBuilder.SetPolygonMode(VK_POLYGON_MODE_FILL);
     graphicsPipelineBuilder.SetCullingMode(VK_CULL_MODE_NONE, VK_FRONT_FACE_CLOCKWISE); //Don't cull any face, and set the orientation clockwise (LHO)
     graphicsPipelineBuilder.setMultisampleNone();
-    graphicsPipelineBuilder.disableDepthTest();
+    //graphicsPipelineBuilder.disableDepthTest();
+    graphicsPipelineBuilder.enableDepthTest(true, VK_COMPARE_OP_GREATER_OR_EQUAL);
     graphicsPipelineBuilder.disableBlending();
     graphicsPipelineBuilder.setColorAttachmentFormat(_drawImage._format);
-    graphicsPipelineBuilder.setDepthFormat(VK_FORMAT_UNDEFINED);
+    graphicsPipelineBuilder.setDepthFormat(_depthImage._format);
     //Create Pipeline layout using initializer info, and set it in the pipeline builder
     VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = vkinit::pipeline_layout_create_info();
     VK_CHECK(vkCreatePipelineLayout(_device, &pipelineLayoutCreateInfo, nullptr, &_trianglePipelineLayout));
@@ -472,10 +473,11 @@ void VulkanEngine::init_mesh_Pipeline()
     graphicsPipelineBuilder.SetPolygonMode(VK_POLYGON_MODE_FILL);
     graphicsPipelineBuilder.SetCullingMode(VK_CULL_MODE_NONE, VK_FRONT_FACE_CLOCKWISE); //Don't cull any face, and set the orientation clockwise (LHO)
     graphicsPipelineBuilder.setMultisampleNone();
-    graphicsPipelineBuilder.disableDepthTest();
+    //graphicsPipelineBuilder.disableDepthTest();
+    graphicsPipelineBuilder.enableDepthTest(true, VK_COMPARE_OP_GREATER_OR_EQUAL);
     graphicsPipelineBuilder.disableBlending();
     graphicsPipelineBuilder.setColorAttachmentFormat(_drawImage._format);
-    graphicsPipelineBuilder.setDepthFormat(VK_FORMAT_UNDEFINED);
+    graphicsPipelineBuilder.setDepthFormat(_depthImage._format);
     //Create Pipeline layout using initializer info, and set it in the pipeline builder
     VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = vkinit::pipeline_layout_create_info();
     VK_CHECK(vkCreatePipelineLayout(_device, &pipelineLayoutCreateInfo, nullptr, &_meshPipelineLayout));
@@ -735,6 +737,8 @@ void VulkanEngine::draw()
 
     //Transition the Draw Image from general to Color Attachment to render on it using Graphics Pipeline
     vkutil::transition_Image(cmd, _drawImage._image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+    //Transition the Depth Image from it's current layout to Depth Attachment to be used in depth testing
+    vkutil::transition_Image(cmd, _depthImage._image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
 
     //Render using Graphics Pipeline
     draw_Geometry(cmd);
@@ -809,11 +813,9 @@ void VulkanEngine::draw_Geometry(VkCommandBuffer cmd)
 {
     //Create Render Attachment info and Render info to start rendering on drawImage
     VkRenderingAttachmentInfo renderAttachmentInfo = vkinit::attachment_info(_drawImage._imageView, nullptr, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-    VkRenderingInfo renderingInfo = vkinit::rendering_info(_drawExtent, &renderAttachmentInfo, nullptr);
+    VkRenderingAttachmentInfo depthAttachmentInfo = vkinit::depth_attachment_info(_depthImage._imageView, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
+    VkRenderingInfo renderingInfo = vkinit::rendering_info(_drawExtent, &renderAttachmentInfo, &depthAttachmentInfo);
     vkCmdBeginRendering(cmd, &renderingInfo);
-
-    //Bind the Graphics Pipeline to the rendering command
-    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _trianglePipeline);
 
     //Create Dynamic State for Viewport and Scissor
     VkViewport viewport = {};
@@ -839,6 +841,8 @@ void VulkanEngine::draw_Geometry(VkCommandBuffer cmd)
     //Draw the third mesh from test meshes loaded from glb file
     //Setup render matrices to render the mesh
     glm::mat4 worldMat = glm::identity<glm::mat4>();
+    //Rotate the Mesh around the y axis
+    worldMat = glm::rotate(worldMat, glm::radians((float)_frameNumber), glm::vec3(0.0f, 1.0f, 0.0f));
     glm::mat4 viewMat = glm::identity<glm::mat4>();
     viewMat = glm::translate(viewMat, glm::vec3(0.0f, 0.0f, -5.0f));
     glm::mat4 projection = glm::perspective(glm::radians(45.0f), (float)_drawExtent.width / (float)_drawExtent.height, 10000.0f, 0.1f); //We are making the near plane the large value, so near place is at 1 and far plane at 0, this greatly increases depth calc accuracy
