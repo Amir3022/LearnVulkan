@@ -34,6 +34,8 @@ VulkanEngine::VulkanEngine()
     _isInitialized =  false;
     _frameNumber = 0;
     stop_rendering = false;
+    resize_Window = false;
+    _renderScale = 1.0f;
     _windowExtent = { 800 , 600 };
     _window = nullptr;
 
@@ -54,7 +56,7 @@ void VulkanEngine::init()
     // We initialize SDL and create a window with it.
     SDL_Init(SDL_INIT_VIDEO);
 
-    SDL_WindowFlags window_flags = (SDL_WindowFlags)(SDL_WINDOW_VULKAN);
+    SDL_WindowFlags window_flags = (SDL_WindowFlags)(SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE);
 
     _window = SDL_CreateWindow(
         "My Test Vulkan Engine",
@@ -156,11 +158,14 @@ void VulkanEngine::init_Swapchain()
 {
     create_Swapchain(_windowExtent.width, _windowExtent.height);
 
-    //Create the Draw Image Used to draw on
+    //Create the Draw Image Used to draw on, set the resulotion of the allocated image to be the display resolution
+    SDL_DisplayMode currentDisplayMode;
+    SDL_GetCurrentDisplayMode(0, &currentDisplayMode);
+
     VkExtent3D drawImageExtent
     {
-        _windowExtent.width,
-        _windowExtent.height,
+        static_cast<uint32_t>(currentDisplayMode.w),
+        static_cast<uint32_t>(currentDisplayMode.h),
         1
     };
 
@@ -504,6 +509,52 @@ void VulkanEngine::init_mesh_Pipeline()
     });
 }
 
+//Function used to init the Values for the Vertex and Index buffer for the drawn mesh (Default Values)
+void VulkanEngine::init_Default_Values()
+{
+    //Initial values for the Vertex and Index buffers
+    std::vector<Vertex> vertices = 
+    {
+        {.position = glm::vec3(0.5f, -0.5f, 0.0f), .color = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f)},     //0
+        {.position = glm::vec3(0.5f, 0.5f, 0.0f), .color = glm::vec4(0.0f, 1.0f, 0.0f, 1.0f)},      //1
+        {.position = glm::vec3(-0.5f, -0.5f, 0.0f), .color = glm::vec4(0.0f, 0.0f, 1.0f, 1.0f)},    //2
+        {.position = glm::vec3(-0.5f, 0.5f, 0.0f), .color = glm::vec4(1.0f, 1.0f, 0.0f, 1.0f)},     //3
+    };
+
+    std::array<uint32_t, 6> indices = 
+    {
+        //First Triangle
+        0, 1, 2,
+        //Second Triangle
+        2, 1, 3
+    };
+
+    //use the Containers to create mesh Draw Buffers
+    _meshBuffers = uploadMesh(vertices, indices);
+
+    //Add both buffers to deletion queue
+    _mainDeletionQueue.addDeletor([&]()
+    {
+       destroyBuffer(_meshBuffers.vertexBuffer);
+       destroyBuffer(_meshBuffers.indexBuffer); 
+    });
+}
+
+void VulkanEngine::init_Loaded_Mesh()
+{
+    //Get the test meshes using LoadMeshFromFile util funtion
+    _testMeshes = vkutil::loadMeshFromFile(*this, ASSET_PATH "/basicmesh.glb").value_or(std::vector<std::shared_ptr<MeshAsset>>{});
+    //Add buffers from each mesh to deletion queue
+    _mainDeletionQueue.addDeletor([&]()
+    {
+        for(std::shared_ptr<MeshAsset> mesh : _testMeshes)
+        {
+            destroyBuffer(mesh->meshBuffers.indexBuffer);
+            destroyBuffer(mesh->meshBuffers.vertexBuffer);
+        }
+    });
+}
+
 void VulkanEngine::init_Pipelines_Background()
 {
     //Use the VKUtils to create Shader Module using the gradient shader path
@@ -616,6 +667,25 @@ void VulkanEngine::destroy_Swapchain()
     }
 }
 
+void VulkanEngine::resize_Swapchain()
+{
+    //Wait for the GPU operations to compelete before destroying the old swapchain
+    vkDeviceWaitIdle(_device);
+
+    //destroy the old Swapchain
+    destroy_Swapchain();
+
+    //query new window size from SLD Window
+    int w, h;
+    SDL_GetWindowSize(_window, &w, &h);
+    _windowExtent.width = w;
+    _windowExtent.height = h;
+    create_Swapchain(_windowExtent.width, _windowExtent.height);
+
+    //Set the Resize window variable to false
+    resize_Window = false;
+}
+
 void VulkanEngine::cleanup()
 {
     if (_isInitialized)
@@ -717,7 +787,16 @@ void VulkanEngine::draw()
 
     //Acquire an Image with index from the swapchain with timeout set to 1 second
     uint32_t swapchainImageIndex;
-    VK_CHECK(vkAcquireNextImageKHR(_device, _swapchain, 1000000000, GetCurrentFrameData()._swapchainSemaphore, nullptr, &swapchainImageIndex)); //No fence needed since this operation shouldn't stall the CPU
+    VkResult acquireResult = vkAcquireNextImageKHR(_device, _swapchain, 1000000000, GetCurrentFrameData()._swapchainSemaphore, nullptr, &swapchainImageIndex); //No fence needed since this operation shouldn't stall the CPU
+    if(acquireResult == VK_ERROR_OUT_OF_DATE_KHR)   //If out of date error, window resized
+    {
+        resize_Window = true;
+        return;
+    }
+
+    //Update the DrawExtent based on current swapchain size and render scale
+    _drawExtent.width = (uint32_t)(glm::min(_swapchainImageExtent2D.width, _drawImage._extent.width) * _renderScale);
+    _drawExtent.height = (uint32_t)(glm::min(_swapchainImageExtent2D.height, _drawImage._extent.height) * _renderScale);
 
     //Begin the command buffer so we can start adding commands for submissiong
     VkCommandBuffer cmd = GetCurrentFrameData()._mainCommandBuffer;
@@ -754,13 +833,13 @@ void VulkanEngine::draw()
     vkutil::transition_Image(cmd, _swapchain_Images[swapchainImageIndex], VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
 
     //Copy the drawImage onto the Swapchain Image
-    vkutil::copy_Image_to_Image(cmd, _drawImage._image, _swapchain_Images[swapchainImageIndex], _drawImage._extent, _swapchainImageExtent2D);
+    vkutil::copy_Image_to_Image(cmd, _drawImage._image, _swapchain_Images[swapchainImageIndex], _drawExtent, _swapchainImageExtent2D);
 
     //Transition the Swapchain Image to Color Attachment, so we can draw ImGui on it
     vkutil::transition_Image(cmd, _swapchain_Images[swapchainImageIndex], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 
-    // //Draw the ImGui window on the swapchain image view
-    // draw_imgui(cmd, _swapchain_Image_Views[swapchainImageIndex]);
+    //Draw the ImGui window on the swapchain image view
+    draw_imgui(cmd, _swapchain_Image_Views[swapchainImageIndex]);
 
     //Transition the swapchain Image to Presentable layout so it can be displayed on the window
     vkutil::transition_Image(cmd, _swapchain_Images[swapchainImageIndex], VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
@@ -791,7 +870,11 @@ void VulkanEngine::draw()
     present_Info.pImageIndices = &swapchainImageIndex;
 
     //Preset the Image to display window
-    VK_CHECK(vkQueuePresentKHR(_commandsQueue, &present_Info));
+    VkResult presentResult = vkQueuePresentKHR(_commandsQueue, &present_Info);
+    if(presentResult == VK_ERROR_OUT_OF_DATE_KHR)
+    {
+        resize_Window = true;
+    }
 
     //increase the Framenumber
     _frameNumber++;
@@ -907,23 +990,36 @@ void VulkanEngine::run()
             continue;
         }
 
+        //Resize swapchain when window size changes
+        if(resize_Window)
+        {
+            resize_Swapchain();
+        }
+
         //Start a new ImGui frame
         ImGui_ImplVulkan_NewFrame();
         ImGui_ImplSDL2_NewFrame();
         ImGui::NewFrame();
 
         //Create Sliders and selections to change between background effects
-        if(ImGui::Begin("Background Effect"))
+        // if(ImGui::Begin("Background Effect"))
+        // {
+        //     ComputeEffect& selectedComputeEffect = backgroundEffects[currentActiveBackgroundEffect];
+        //     std::string formatedTextTitle = fmt::format("Selected Effect: {}", selectedComputeEffect.name.c_str());
+        //     ImGui::Text(formatedTextTitle.c_str()); //Set the name of the current selected effect
+        //     ImGui::SliderInt("Effect Index", &currentActiveBackgroundEffect, 0, backgroundEffects.size() - 1);  //Choose an effect index using slider
+        //     //Setting the Push Constants data
+        //     ImGui::InputFloat4("Data1", (float*)&selectedComputeEffect.pc_data.data1);
+        //     ImGui::InputFloat4("Data2", (float*)&selectedComputeEffect.pc_data.data2);
+        //     ImGui::InputFloat4("Data3", (float*)&selectedComputeEffect.pc_data.data3);
+        //     ImGui::InputFloat4("Data4", (float*)&selectedComputeEffect.pc_data.data4);
+        // }
+        // ImGui::End();
+
+        //Create Slider to change render scale for the displayed rendered image
+        if(ImGui::Begin("Render Scale"))
         {
-            ComputeEffect& selectedComputeEffect = backgroundEffects[currentActiveBackgroundEffect];
-            std::string formatedTextTitle = fmt::format("Selected Effect: {}", selectedComputeEffect.name.c_str());
-            ImGui::Text(formatedTextTitle.c_str()); //Set the name of the current selected effect
-            ImGui::SliderInt("Effect Index", &currentActiveBackgroundEffect, 0, backgroundEffects.size() - 1);  //Choose an effect index using slider
-            //Setting the Push Constants data
-            ImGui::InputFloat4("Data1", (float*)&selectedComputeEffect.pc_data.data1);
-            ImGui::InputFloat4("Data2", (float*)&selectedComputeEffect.pc_data.data2);
-            ImGui::InputFloat4("Data3", (float*)&selectedComputeEffect.pc_data.data3);
-            ImGui::InputFloat4("Data4", (float*)&selectedComputeEffect.pc_data.data4);
+            ImGui::SliderFloat("Render Scale Slider Value", &_renderScale, 0.3f, 1.0f);
         }
         ImGui::End();
 
@@ -1005,50 +1101,4 @@ GPUMeshBuffers VulkanEngine::uploadMesh(std::span<Vertex> vertices, std::span<ui
     destroyBuffer(stagingBuffer);
 
     return newSurfaceBuffers;
-}
-
-//Function used to init the Values for the Vertex and Index buffer for the drawn mesh (Default Values)
-void VulkanEngine::init_Default_Values()
-{
-    //Initial values for the Vertex and Index buffers
-    std::vector<Vertex> vertices = 
-    {
-        {.position = glm::vec3(0.5f, -0.5f, 0.0f), .color = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f)},     //0
-        {.position = glm::vec3(0.5f, 0.5f, 0.0f), .color = glm::vec4(0.0f, 1.0f, 0.0f, 1.0f)},      //1
-        {.position = glm::vec3(-0.5f, -0.5f, 0.0f), .color = glm::vec4(0.0f, 0.0f, 1.0f, 1.0f)},    //2
-        {.position = glm::vec3(-0.5f, 0.5f, 0.0f), .color = glm::vec4(1.0f, 1.0f, 0.0f, 1.0f)},     //3
-    };
-
-    std::array<uint32_t, 6> indices = 
-    {
-        //First Triangle
-        0, 1, 2,
-        //Second Triangle
-        2, 1, 3
-    };
-
-    //use the Containers to create mesh Draw Buffers
-    _meshBuffers = uploadMesh(vertices, indices);
-
-    //Add both buffers to deletion queue
-    _mainDeletionQueue.addDeletor([&]()
-    {
-       destroyBuffer(_meshBuffers.vertexBuffer);
-       destroyBuffer(_meshBuffers.indexBuffer); 
-    });
-}
-
-void VulkanEngine::init_Loaded_Mesh()
-{
-    //Get the test meshes using LoadMeshFromFile util funtion
-    _testMeshes = vkutil::loadMeshFromFile(*this, ASSET_PATH "/basicmesh.glb").value_or(std::vector<std::shared_ptr<MeshAsset>>{});
-    //Add buffers from each mesh to deletion queue
-    _mainDeletionQueue.addDeletor([&]()
-    {
-        for(std::shared_ptr<MeshAsset> mesh : _testMeshes)
-        {
-            destroyBuffer(mesh->meshBuffers.indexBuffer);
-            destroyBuffer(mesh->meshBuffers.vertexBuffer);
-        }
-    });
 }

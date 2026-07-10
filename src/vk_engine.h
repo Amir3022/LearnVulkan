@@ -81,6 +81,7 @@ private:
 	//Swapchain Functions
 	void create_Swapchain(uint32_t width, uint32_t height);
 	void destroy_Swapchain();
+	void resize_Swapchain();
 
 	//Pipeline Functions
 	void init_Pipelines_Background();
@@ -111,6 +112,7 @@ private:
 	bool _isInitialized;
 	int _frameNumber;
 	bool stop_rendering;
+	bool resize_Window;
 	VkExtent2D _windowExtent;
 	SDL_Window* _window;
 	deletionQueue _mainDeletionQueue;
@@ -132,6 +134,7 @@ private:
 	AllocatedImage _drawImage;	//Image used to draw on before writing on the swapchain acquired image, giving us more freedom to the operations we can do
 	AllocatedImage _depthImage; //Image used for depth testing
 	VkExtent2D _drawExtent;
+	float _renderScale;
 
 	//Commands Variables
 	std::array<FrameData, FRAME_COUNT> _frames;
