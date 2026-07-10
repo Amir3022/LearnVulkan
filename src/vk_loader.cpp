@@ -7,7 +7,7 @@
 
 namespace vkutil
 {
-    std::optional<std::vector<MeshAsset>> loadMeshFromFile(VulkanEngine &engine, std::filesystem::path path)
+    std::optional<std::vector<std::shared_ptr<MeshAsset>>> loadMeshFromFile(VulkanEngine &engine, std::filesystem::path path)
     {
         fmt::println("Trying to load Mesh from file {}", path.string());
 
@@ -36,7 +36,7 @@ namespace vkutil
         gltfAsset = std::move(parsedAsset.get());
 
         //Create mesh asset from sub meshes in the gltf asset
-        std::vector<MeshAsset> meshAssets;
+        std::vector<std::shared_ptr<MeshAsset>> meshAssets;
 
         //Create containers to hold the read vertices and indices from each submesh
         std::vector<Vertex> vertices;
@@ -163,7 +163,7 @@ namespace vkutil
             //Use the engine to upload the vertices and indices vectors, and use them to create mesh buffers
             newMeshAsset.meshBuffers = engine.uploadMesh(vertices, indices);
 
-            meshAssets.push_back(newMeshAsset);
+            meshAssets.push_back(std::make_shared<MeshAsset>(std::move(newMeshAsset)));
         }
 
         return meshAssets;

@@ -9,5 +9,5 @@ class VulkanEngine;
 
 namespace vkutil
 {
-    std::optional<std::vector<MeshAsset>> loadMeshFromFile(VulkanEngine& engine, std::filesystem::path path);
+    std::optional<std::vector<std::shared_ptr<MeshAsset>>> loadMeshFromFile(VulkanEngine& engine, std::filesystem::path path);
 };

@@ -850,12 +850,12 @@ void VulkanEngine::draw_Geometry(VkCommandBuffer cmd)
     //Create the push constants needed to draw the mesh
     GPUDrawPushConstants drawPushConstants = {};
     drawPushConstants.worldTransform = projection * viewMat * worldMat;
-    drawPushConstants.vertexBufferDeviceAddress = _testMeshes[2].meshBuffers.vertexBufferDeviceAddress;
+    drawPushConstants.vertexBufferDeviceAddress = _testMeshes[2]->meshBuffers.vertexBufferDeviceAddress;
     vkCmdPushConstants(cmd, _meshPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(GPUDrawPushConstants), &drawPushConstants);
     //Bind the Indices Buffer
-    vkCmdBindIndexBuffer(cmd, _testMeshes[2].meshBuffers.indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
+    vkCmdBindIndexBuffer(cmd, _testMeshes[2]->meshBuffers.indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
     //Launch indexed draw command to draw the surface of the mesh
-    vkCmdDrawIndexed(cmd, _testMeshes[2].surfaces[0].count, 1, _testMeshes[2].surfaces[0].startIndex, 0, 0);
+    vkCmdDrawIndexed(cmd, (uint32_t)_testMeshes[2]->surfaces[0].count, 1, _testMeshes[2]->surfaces[0].startIndex, 0, 0);
 
     //End rendering command
     vkCmdEndRendering(cmd);
@@ -1040,15 +1040,14 @@ void VulkanEngine::init_Default_Values()
 void VulkanEngine::init_Loaded_Mesh()
 {
     //Get the test meshes using LoadMeshFromFile util funtion
-    _testMeshes = vkutil::loadMeshFromFile(*this, ASSET_PATH "/basicmesh.glb").value();
-
+    _testMeshes = vkutil::loadMeshFromFile(*this, ASSET_PATH "/basicmesh.glb").value_or(std::vector<std::shared_ptr<MeshAsset>>{});
     //Add buffers from each mesh to deletion queue
-    for(MeshAsset& mesh : _testMeshes)
+    _mainDeletionQueue.addDeletor([&]()
     {
-        _mainDeletionQueue.addDeletor([&]()
+        for(std::shared_ptr<MeshAsset> mesh : _testMeshes)
         {
-            destroyBuffer(mesh.meshBuffers.indexBuffer);
-            destroyBuffer(mesh.meshBuffers.vertexBuffer);
-        });
-    }
+            destroyBuffer(mesh->meshBuffers.indexBuffer);
+            destroyBuffer(mesh->meshBuffers.vertexBuffer);
+        }
+    });
 }

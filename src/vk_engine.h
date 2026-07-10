@@ -164,5 +164,5 @@ private:
 	GPUMeshBuffers _meshBuffers;
 
 	//Loaded Mesh Variables
-	std::vector<MeshAsset> _testMeshes;
+	std::vector<std::shared_ptr<MeshAsset>> _testMeshes;
 };
