@@ -843,7 +843,7 @@ void VulkanEngine::draw_Geometry(VkCommandBuffer cmd)
     //Setup render matrices to render the mesh
     glm::mat4 worldMat = glm::identity<glm::mat4>();
     //Rotate the Mesh around the y axis
-    worldMat = glm::rotate(worldMat, glm::radians((float)_frameNumber), glm::vec3(0.0f, 1.0f, 0.0f));
+    worldMat = glm::rotate(worldMat, glm::radians((float)_frameNumber * 0.25f), glm::vec3(0.0f, 1.0f, 0.0f));
     glm::mat4 viewMat = glm::identity<glm::mat4>();
     viewMat = glm::translate(viewMat, glm::vec3(0.0f, 0.0f, -5.0f));
     glm::mat4 projection = glm::perspective(glm::radians(45.0f), (float)_drawExtent.width / (float)_drawExtent.height, 10000.0f, 0.1f); //We are making the near plane the large value, so near place is at 1 and far plane at 0, this greatly increases depth calc accuracy
