@@ -294,22 +294,10 @@ void VulkanEngine::init_Descriptors()
     //use allocator to allocate Descriptor set using the generated layout
     _drawImageDescriptors = GlobalDescriptorAllocator.allocate(_device, _drawImageDescriptorSetLayout);
 
-    //Create Image info from Draw Image used to write on
-    VkDescriptorImageInfo drawImageInfo = {};
-    drawImageInfo.imageView = _drawImage._imageView;
-    drawImageInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
-
-    //Create Write Descriptor to update the bound descriptor set with image info
-    VkWriteDescriptorSet drawImageWrite = {};
-    drawImageWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    drawImageWrite.pNext = nullptr;
-    drawImageWrite.dstSet = _drawImageDescriptors;
-    drawImageWrite.dstBinding = 0;
-    drawImageWrite.descriptorCount = 1;
-    drawImageWrite.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
-    drawImageWrite.pImageInfo = &drawImageInfo;
-
-    vkUpdateDescriptorSets(_device, 1, &drawImageWrite, 0, nullptr);
+    //Use DescriptorSetWriter to write to drawImageDescriptor to draw the background
+    DescriptorSetWriter writer;
+    writer.writeImage(0, _drawImage._imageView, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
+    writer.updateSet(_device, _drawImageDescriptors);
 
     //Add create Descriptor Set layout and descriptor allocation pool to deletion queue (Destroying the pool will destroy any allocated sets)
     _mainDeletionQueue.addDeletor([&]()
@@ -821,7 +809,7 @@ void VulkanEngine::draw()
     vkutil::transition_Image(cmd, _depthImage._image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
 
     //Render using Graphics Pipeline
-    draw_Geometry(cmd);
+    //draw_Geometry(cmd);
 
     //Transition the DrawImage from Color Attachment to transfer source, to be used later to draw on the swapchain image
     vkutil::transition_Image(cmd, _drawImage._image, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
@@ -887,10 +875,10 @@ void VulkanEngine::draw_Background(VkCommandBuffer cmd)
     clearColor = {0.0f, 0.0f, 0.0f, 1.0f};
     draw_functions::draw_Clear_Background(cmd, clearColor, _drawImage._image);
 
-    // //Get the Selected Background effect
-    // ComputeEffect& backgroundEffect = backgroundEffects[currentActiveBackgroundEffect];
-    // //Draw the Selected background effect using compute shader
-    // draw_functions::draw_BackgroundEffects(cmd, backgroundEffect, _gradientPipelineLayout, _drawImageDescriptors, _drawExtent);
+    //Get the Selected Background effect
+    ComputeEffect& backgroundEffect = backgroundEffects[currentActiveBackgroundEffect];
+    //Draw the Selected background effect using compute shader
+    draw_functions::draw_BackgroundEffects(cmd, backgroundEffect, _gradientPipelineLayout, _drawImageDescriptors, _drawExtent);
 }
 
 void VulkanEngine::draw_Geometry(VkCommandBuffer cmd)
