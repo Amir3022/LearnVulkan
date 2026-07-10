@@ -188,6 +188,19 @@ void PipelineBuilder::disableBlending()
     _colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
 }
 
+void PipelineBuilder::enableBlending(bool bUseAlphaBlend)
+{
+    //Enable Blending in the color Blend attachment
+    _colorBlendAttachment.blendEnable = VK_TRUE;
+    _colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+    _colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+    _colorBlendAttachment.dstColorBlendFactor = bUseAlphaBlend ? VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA : VK_BLEND_FACTOR_ONE;
+    _colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;
+    _colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+    _colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+    _colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
+}
+
 void PipelineBuilder::setColorAttachmentFormat(VkFormat format)
 {
     _colorAttachmentFormat = format;

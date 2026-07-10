@@ -476,6 +476,7 @@ void VulkanEngine::init_mesh_Pipeline()
     //graphicsPipelineBuilder.disableDepthTest();
     graphicsPipelineBuilder.enableDepthTest(true, VK_COMPARE_OP_GREATER_OR_EQUAL);
     graphicsPipelineBuilder.disableBlending();
+    //graphicsPipelineBuilder.enableBlending(false);
     graphicsPipelineBuilder.setColorAttachmentFormat(_drawImage._format);
     graphicsPipelineBuilder.setDepthFormat(_depthImage._format);
     //Create Pipeline layout using initializer info, and set it in the pipeline builder

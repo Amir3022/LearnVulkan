@@ -45,6 +45,8 @@ struct PipelineBuilder
 
     void disableBlending();
 
+    void enableBlending(bool bUseAlphaBlend);
+
     void setColorAttachmentFormat(VkFormat format);
 
     void setDepthFormat(VkFormat format);
