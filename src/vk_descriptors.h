@@ -2,6 +2,11 @@
 
 #include <vk_types.h>
 
+struct PoolSizeRatio
+{
+    VkDescriptorType type;
+    float ratio;
+};
 struct DescriptorLayoutBuilder
 {
     std::vector<VkDescriptorSetLayoutBinding> bindings;
@@ -16,12 +21,6 @@ struct DescriptorLayoutBuilder
 
 struct DescriptorAllocator
 {
-    struct PoolSizeRatio
-    {
-        VkDescriptorType type;
-        float ratio;
-    };
-
     VkDescriptorPool pool;
 
     void init_pool(VkDevice device, uint32_t maxSets, std::span<PoolSizeRatio> poolSizeRatios);

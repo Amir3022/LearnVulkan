@@ -277,7 +277,7 @@ void VulkanEngine::init_Sync_Structures()
 void VulkanEngine::init_Descriptors()
 {
     //Initialize the Descriptor Pool with maxsets set to 10, each having a single binding of types Storage Image
-    std::vector<DescriptorAllocator::PoolSizeRatio> poolSizeRatios
+    std::vector<PoolSizeRatio> poolSizeRatios
     {
         { 
             VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
