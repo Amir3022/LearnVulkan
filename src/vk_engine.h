@@ -38,6 +38,7 @@ struct FrameData
 	VkFence _renderFence;
 
 	deletionQueue _frameDeletionQueue;
+	DescriptorAllocatorGrowable _descriptorsPool;
 };
 
 constexpr uint32_t FRAME_COUNT = 2;
@@ -165,6 +166,10 @@ private:
 	VkPipelineLayout _meshPipelineLayout;
 	VkPipeline _meshPipeline;
 	GPUMeshBuffers _meshBuffers;
+
+	//Scene Data Variables
+	GPUSceneData _gpuSceneData;
+	VkDescriptorSetLayout _gpuSceneDescriptorSetLayout;
 
 	//Loaded Mesh Variables
 	std::vector<std::shared_ptr<MeshAsset>> _testMeshes;

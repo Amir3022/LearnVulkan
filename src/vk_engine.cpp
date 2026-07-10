@@ -299,6 +299,35 @@ void VulkanEngine::init_Descriptors()
     writer.writeImage(0, _drawImage._imageView, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
     writer.updateSet(_device, _drawImageDescriptors);
 
+    //Create PoolSizeRatios to be used for the initializing of each frame descriptor pool
+    std::vector<PoolSizeRatio> poolSizeRatio = 
+    {
+        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 3},
+        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 3},
+        {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 3},
+        {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 4},
+    };
+
+    //For each frame data for each frame count, create a growable descriptors pool
+    for(int i = 0; i < FRAME_COUNT; i++)
+    {
+        _frames[i]._descriptorsPool = DescriptorAllocatorGrowable();
+        _frames[i]._descriptorsPool.init(_device, 1000, poolSizeRatio);
+
+        //Add the destruction of the pool to the main deletion queue
+        _mainDeletionQueue.addDeletor([=, this]()
+        {
+             _frames[i]._descriptorsPool.destroyPools(_device);
+        });
+    }
+
+    //Initialize Descriptor set Layout Builder with a single buffer binding
+    DescriptorLayoutBuilder gpuSceneDataDescriptorLayoutBuilder;
+    gpuSceneDataDescriptorLayoutBuilder.add_binding(9, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);  //Uniform since that data we need is small for each frame scene data
+    //Create gpu Scene Data descriptor layout
+    _gpuSceneDescriptorSetLayout = gpuSceneDataDescriptorLayoutBuilder.build_Layout(_device, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT);
+
+
     //Add create Descriptor Set layout and descriptor allocation pool to deletion queue (Destroying the pool will destroy any allocated sets)
     _mainDeletionQueue.addDeletor([&]()
     {
@@ -772,6 +801,8 @@ void VulkanEngine::draw()
     VK_CHECK(vkResetFences(_device, 1, &GetCurrentFrameData()._renderFence));
     //Clean all objects in currentframe deletors
     GetCurrentFrameData()._frameDeletionQueue.flush();
+    //Clear all allocated descriptor sets by the current frame descriptor pool
+    GetCurrentFrameData()._descriptorsPool.resetPools(_device);
 
     //Acquire an Image with index from the swapchain with timeout set to 1 second
     uint32_t swapchainImageIndex;
@@ -905,8 +936,24 @@ void VulkanEngine::draw_Geometry(VkCommandBuffer cmd)
     scissor.extent = _drawExtent;
     vkCmdSetScissor(cmd, 0, 1, &scissor);
 
-    //Launch draw command to draw 3 vertices
-    //vkCmdDraw(cmd, 3, 1, 0, 0);
+    //Create Buffer for current frame scene data to add to descriptor set and bind it to draw command
+    AllocatedBuffer sceneDataBuffer = createBuffer(sizeof(GPUSceneData), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
+    //Add the created buffer destroyed to current frame deletion queue
+    GetCurrentFrameData()._frameDeletionQueue.addDeletor([&]()
+    {
+        destroyBuffer(sceneDataBuffer);
+    });
+    
+    //Copy the data from scene data to the created buffer
+    memcpy(sceneDataBuffer.allocationInfo.pMappedData, &_gpuSceneData, sizeof(GPUSceneData));
+
+    //Use Current Frame descriptor pool allocator to allocate a new descriptor set for this frame scene data
+    VkDescriptorSet gpuSceneDataDescriptorSet = GetCurrentFrameData()._descriptorsPool.allocate(_device, _gpuSceneDescriptorSetLayout);
+
+    //Initialize Descriptor set writer and use it write buffer info into current frame scene data descriptor set
+    DescriptorSetWriter writer;
+    writer.writeBuffer(0, sceneDataBuffer.buffer, sceneDataBuffer.allocationInfo.size, sceneDataBuffer.allocationInfo.offset, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
+    writer.updateSet(_device, gpuSceneDataDescriptorSet);
 
     //Bind the Pipeline to draw the mesh
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _meshPipeline);
