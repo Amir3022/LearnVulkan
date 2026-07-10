@@ -270,7 +270,7 @@ void DescriptorSetWriter::clear()
 void DescriptorSetWriter::updateSet(VkDevice device, VkDescriptorSet set)
 {
     //Set the descriptor Set as the set for each write descriptor set struct
-    for(auto w : writes)
+    for(auto& w : writes)
     {
         w.dstSet = set;
     }
