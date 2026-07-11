@@ -172,8 +172,8 @@ void VulkanEngine::init_Swapchain()
     VkFormat imageFormat = VK_FORMAT_R16G16B16A16_SFLOAT;
     //Set the Format and extent of the Allocated Image
     _drawImage._format = imageFormat;
-    _drawImage._extent = { drawImageExtent.width, drawImageExtent.height };
-    _drawExtent = _drawImage._extent;
+    _drawImage._extent = drawImageExtent;
+    _drawExtent = {_drawImage._extent.width, _drawImage._extent.height};
     //Set the Image Usage Flags
     VkImageUsageFlags imageUsageFlags = VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
                                         VK_IMAGE_USAGE_TRANSFER_DST_BIT |
@@ -197,7 +197,7 @@ void VulkanEngine::init_Swapchain()
     //Create Depth Image with it's allocation
     imageFormat = VK_FORMAT_D32_SFLOAT; //Depth will consist of a single float variable
     _depthImage._format = imageFormat;
-    _depthImage._extent = _drawExtent;
+    _depthImage._extent = drawImageExtent;
     //Set the depth image usage flags to be used as depth attachment
     imageUsageFlags = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
     //Create image creation info
@@ -1087,6 +1087,87 @@ AllocatedBuffer VulkanEngine::createBuffer(size_t bufferSize, VkBufferUsageFlags
 void VulkanEngine::destroyBuffer(const AllocatedBuffer &buffer)
 {
     vmaDestroyBuffer(_allocator, buffer.buffer, buffer.allocation);
+}
+
+AllocatedImage VulkanEngine::createImage(VkExtent3D imageExtent, VkFormat imageFormat, VkImageUsageFlags flags, VmaMemoryUsage memUsageFlags, bool bUseMipMap)
+{
+    AllocatedImage newImage;
+    //Set the Format and extent of the Allocated Image
+    newImage._format = imageFormat;
+    newImage._extent = imageExtent;
+
+    //Create the creation info
+    VkImageCreateInfo imageCreateInfo = vkinit::image_create_info(imageFormat, flags, imageExtent);
+    if(bUseMipMap)
+    {
+        imageCreateInfo.mipLevels = std::floor(std::log2(std::max(imageExtent.width, imageExtent.height))) + 1;
+    }
+
+    //Create the Image Allocation Info
+    VmaAllocationCreateInfo allocationCreateInfo = {};
+    allocationCreateInfo.usage = memUsageFlags;
+    allocationCreateInfo.requiredFlags = VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    //Create the image with allocation
+    vmaCreateImage(_allocator, &imageCreateInfo, &allocationCreateInfo, &newImage._image, &newImage._allocation, nullptr);
+
+    //Set the Image Aspect Flag based on the Image Format
+    VkImageAspectFlags aspect = VK_IMAGE_ASPECT_COLOR_BIT;
+    if(imageFormat = VK_FORMAT_D32_SFLOAT)
+    {
+        aspect = VK_IMAGE_ASPECT_DEPTH_BIT;
+    }
+    //Create the ImageView
+    VkImageViewCreateInfo imageViewCreateInfo = vkinit::imageview_create_info(imageFormat, newImage._image, aspect);
+    VK_CHECK(vkCreateImageView(_device, &imageViewCreateInfo, nullptr, &newImage._imageView));
+
+    //return the created Image
+    return newImage;
+}
+
+AllocatedImage VulkanEngine::createImage(void *data, VkExtent3D imageExtent, VkFormat imageFormat, VkImageUsageFlags flags, VmaMemoryUsage memUsageFlags, bool bUseMipMap)
+{
+    //Create staging buffer to use to copy data to created image
+    size_t dataSize = imageExtent.width * imageExtent.height * imageExtent.depth * 4; //4 cause image has rgba elements
+    AllocatedBuffer stagingBuffer = createBuffer(dataSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
+    //Copy data from input data to buffer allocation
+    memcpy(stagingBuffer.allocationInfo.pMappedData, data, dataSize);
+
+    //Create new Image with empty data using input parameters
+    AllocatedImage newImage = createImage(imageExtent, imageFormat, flags, memUsageFlags, bUseMipMap);
+
+    //Use Immediate Command to transfer data from staging buffer to new image
+    submit_Immediate_Command([&](VkCommandBuffer cmd)
+    {
+        //Create Buffer Image Copy info with appropriate data
+        VkBufferImageCopy newImageCopy = {};
+        newImageCopy.bufferOffset = 0;
+        newImageCopy.bufferRowLength = 0;
+        newImageCopy.bufferImageHeight = 0;
+        newImageCopy.imageSubresource.mipLevel = 0;
+        newImageCopy.imageSubresource.layerCount = 1;
+        newImageCopy.imageSubresource.baseArrayLayer = 0;
+        newImageCopy.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        newImageCopy.imageExtent = imageExtent;
+
+        //use Copy command to transfer the data
+        vkCmdCopyBufferToImage(cmd, stagingBuffer.buffer, newImage._image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &newImageCopy);
+
+        //Transition the image from it's current layout to shader usage only
+        vkutil::transition_Image(cmd, newImage._image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    });
+
+    //Destroy the created staging buffer
+    destroyBuffer(stagingBuffer);
+
+    //return the newly created image
+    return newImage;
+}
+
+void VulkanEngine::destroyImage(const AllocatedImage& image)
+{
+    //Destroy the image view first then the Image and it's allocation
+    vkDestroyImageView(_device, image._imageView, nullptr);
+    vmaDestroyImage(_allocator, image._image, image._allocation);
 }
 
 GPUMeshBuffers VulkanEngine::uploadMesh(std::span<Vertex> vertices, std::span<uint32_t> indices)

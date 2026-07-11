@@ -104,6 +104,11 @@ private:
 	AllocatedBuffer createBuffer(size_t bufferSize, VkBufferUsageFlags bufferUsage, VmaMemoryUsage memoryUsage);
 	void destroyBuffer(const AllocatedBuffer& buffer);
 
+	//Image Functions
+	AllocatedImage createImage(VkExtent3D imageExtent, VkFormat imageFormat, VkImageUsageFlags flags, VmaMemoryUsage memUsageFlags, bool bUseMipMap = false);
+	AllocatedImage createImage(void* data, VkExtent3D imageExtent, VkFormat imageFormat, VkImageUsageFlags flags, VmaMemoryUsage memUsageFlags, bool bUseMipMap = false);
+	void destroyImage(const AllocatedImage& image);
+
 	//Mesh Draw Functions
 	void init_Default_Values();
 	void init_Loaded_Mesh();
@@ -173,4 +178,12 @@ private:
 
 	//Loaded Mesh Variables
 	std::vector<std::shared_ptr<MeshAsset>> _testMeshes;
+
+	//Engine Default Colored Texture Images and samplers
+	AllocatedImage _whiteTex;
+	AllocatedImage _greyTex;
+	AllocatedImage _blackTex;
+	AllocatedImage _errorCheckerBoard;
+	VkSampler _defaultSamplerLinear;
+	VkSampler _defaultSamplerNearest;
 };
