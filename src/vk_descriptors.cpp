@@ -98,6 +98,9 @@ void DescriptorAllocatorGrowable::init(VkDevice device, uint32_t maxSets, std::s
     {    
         ratios.push_back(p);
     }
+    
+    //Set the maxSetsCount variable from maxSets property
+    maxSetsCount = maxSets;
 
     //Create initial pool and add it to ready pools
     VkDescriptorPool newPool;
