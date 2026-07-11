@@ -939,7 +939,7 @@ void VulkanEngine::draw_Geometry(VkCommandBuffer cmd)
     //Create Buffer for current frame scene data to add to descriptor set and bind it to draw command
     AllocatedBuffer sceneDataBuffer = createBuffer(sizeof(GPUSceneData), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
     //Add the created buffer destroyed to current frame deletion queue
-    GetCurrentFrameData()._frameDeletionQueue.addDeletor([&]()
+    GetCurrentFrameData()._frameDeletionQueue.addDeletor([=]()
     {
         destroyBuffer(sceneDataBuffer);
     });
