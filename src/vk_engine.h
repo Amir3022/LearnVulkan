@@ -176,6 +176,9 @@ private:
 	GPUSceneData _gpuSceneData;
 	VkDescriptorSetLayout _gpuSceneDescriptorSetLayout;
 
+	//Test Texture variables
+	VkDescriptorSetLayout _testTextureDescriptorSetLayout;
+
 	//Loaded Mesh Variables
 	std::vector<std::shared_ptr<MeshAsset>> _testMeshes;
 

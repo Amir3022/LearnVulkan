@@ -321,18 +321,25 @@ void VulkanEngine::init_Descriptors()
         });
     }
 
-    //Initialize Descriptor set Layout Builder with a single buffer binding
-    DescriptorLayoutBuilder gpuSceneDataDescriptorLayoutBuilder;
-    gpuSceneDataDescriptorLayoutBuilder.add_binding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);  //Uniform since that data we need is small for each frame scene data
+    //Clear Descriptor set Layout Builder and add new single buffer binding
+    layoutBuilder.clear();
+    layoutBuilder.add_binding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);  //Uniform since that data we need is small for each frame scene data
     //Create gpu Scene Data descriptor layout
-    _gpuSceneDescriptorSetLayout = gpuSceneDataDescriptorLayoutBuilder.build_Layout(_device, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT);
+    _gpuSceneDescriptorSetLayout = layoutBuilder.build_Layout(_device, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT);
 
+    //Clear Descriptor set layout Builder and bind combined image with sampler
+    layoutBuilder.clear();
+    layoutBuilder.add_binding(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);    //We will send both the image and it's sampler to the shader
+    //Create testTexture descriptor set layout
+    _testTextureDescriptorSetLayout = layoutBuilder.build_Layout(_device, VK_SHADER_STAGE_FRAGMENT_BIT);
 
     //Add create Descriptor Set layout and descriptor allocation pool to deletion queue (Destroying the pool will destroy any allocated sets)
     _mainDeletionQueue.addDeletor([&]()
     {
         GlobalDescriptorAllocator.destroy_pool(_device);
         vkDestroyDescriptorSetLayout(_device, _drawImageDescriptorSetLayout, nullptr);
+        vkDestroyDescriptorSetLayout(_device, _gpuSceneDescriptorSetLayout, nullptr);
+        vkDestroyDescriptorSetLayout(_device, _testTextureDescriptorSetLayout, nullptr);
     });
 }
 
@@ -501,8 +508,21 @@ void VulkanEngine::init_mesh_Pipeline()
     //graphicsPipelineBuilder.enableBlending(false);
     graphicsPipelineBuilder.setColorAttachmentFormat(_drawImage._format);
     graphicsPipelineBuilder.setDepthFormat(_depthImage._format);
+
     //Create Pipeline layout using initializer info, and set it in the pipeline builder
     VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = vkinit::pipeline_layout_create_info();
+
+    //Add the Push Constant Buffer range and test texture descriptor set layout to the pipeline create info
+    VkPushConstantRange pushConstantRange = {};
+    pushConstantRange.size = sizeof(GPUDrawPushConstants);
+    pushConstantRange.offset = 0;
+    pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+
+    pipelineLayoutCreateInfo.pushConstantRangeCount = 1;
+    pipelineLayoutCreateInfo.pPushConstantRanges = &pushConstantRange;
+    pipelineLayoutCreateInfo.setLayoutCount = 1;
+    pipelineLayoutCreateInfo.pSetLayouts = &_testTextureDescriptorSetLayout;
+
     VK_CHECK(vkCreatePipelineLayout(_device, &pipelineLayoutCreateInfo, nullptr, &_meshPipelineLayout));
     graphicsPipelineBuilder._pipelineLayout = _meshPipelineLayout; 
 
@@ -550,20 +570,20 @@ void VulkanEngine::init_Default_Values()
     _meshBuffers = uploadMesh(vertices, indices);
 
     //Create Images for each default texture colors
-    glm::uint white = glm::packUnorm4x8(glm::vec4(1.0f, 1.0f, 1.0f, 1.0f));
+    uint32_t white = glm::packUnorm4x8(glm::vec4(1.0f, 1.0f, 1.0f, 1.0f));
     _whiteTex = createImage((void*)&white, VkExtent3D(1 ,1 ,1), VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT, VMA_MEMORY_USAGE_GPU_ONLY);
-    glm::uint grey = glm::packUnorm4x8(glm::vec4(0.6f, 0.6f, 0.6f, 1.0f));
+    uint32_t grey = glm::packUnorm4x8(glm::vec4(0.6f, 0.6f, 0.6f, 1.0f));
     _greyTex = createImage((void*)&grey, VkExtent3D(1 ,1 ,1), VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT, VMA_MEMORY_USAGE_GPU_ONLY);
-    glm::uint black = glm::packUnorm4x8(glm::vec4(0.0f, 0.0f, 0.0f, 0.0f));
+    uint32_t black = glm::packUnorm4x8(glm::vec4(0.0f, 0.0f, 0.0f, 0.0f));
     _blackTex = createImage((void*)&black, VkExtent3D(1 ,1 ,1), VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT, VMA_MEMORY_USAGE_GPU_ONLY);
-    glm::uint magenta = glm::packUnorm4x8(glm::vec4(1.0f, 0.0f, 1.0f, 1.0f));
-    std::vector<glm::uint> checkersPixels;
-    checkersPixels.reserve(16*16);
+    uint32_t magenta = glm::packUnorm4x8(glm::vec4(1.0f, 0.0f, 1.0f, 1.0f));
+    std::vector<uint32_t> checkersPixels;
+    checkersPixels.resize(16*16);
     for(int y = 0; y < 16; y++)
     {
         for(int x = 0; x < 16;  x++)
         {
-            checkersPixels[y * 16 + x] = ((x % 2 == 0) && (y % 2 == 0)) ? black : magenta;
+            checkersPixels[y * 16 + x] = ((x % 2 == 0) ^ (y % 2 == 0)) ? black : magenta;
         }
     }
     _errorCheckerBoard = createImage((void*)checkersPixels.data(), VkExtent3D(16, 16, 1),VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT, VMA_MEMORY_USAGE_GPU_ONLY); 
@@ -945,7 +965,7 @@ void VulkanEngine::draw_Background(VkCommandBuffer cmd)
 {
     //Clear the screen with a black image
     VkClearColorValue clearColor;
-    clearColor = {0.0f, 0.0f, 0.0f, 1.0f};
+    clearColor = {0.2f, 0.2f, 0.2f, 1.0f};
     draw_functions::draw_Clear_Background(cmd, clearColor, _drawImage._image);
 
     // //Get the Selected Background effect
@@ -997,8 +1017,18 @@ void VulkanEngine::draw_Geometry(VkCommandBuffer cmd)
     writer.writeBuffer(0, sceneDataBuffer.buffer, sceneDataBuffer.allocationInfo.size, sceneDataBuffer.allocationInfo.offset, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
     writer.updateSet(_device, gpuSceneDataDescriptorSet);
 
+    //Use Current Frame Data Descriptor Pool to allocate a new descriptor set for test texture
+    VkDescriptorSet testTextureDescriptorSet = GetCurrentFrameData()._descriptorsPool.allocate(_device, _testTextureDescriptorSetLayout);
+    //Use created writer to write image info to the descriptor set
+    writer.clear();
+    writer.writeImage(0, _errorCheckerBoard._imageView, _defaultSamplerNearest, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+    writer.updateSet(_device, testTextureDescriptorSet);
+
     //Bind the Pipeline to draw the mesh
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _meshPipeline);
+    //Bind the descriptor set to the bound pipeline
+    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _meshPipelineLayout, 0, 1, &testTextureDescriptorSet, 0, nullptr);
+
     //Draw the third mesh from test meshes loaded from glb file
     //Setup render matrices to render the mesh
     glm::mat4 worldMat = glm::identity<glm::mat4>();
@@ -1154,12 +1184,13 @@ AllocatedImage VulkanEngine::createImage(VkExtent3D imageExtent, VkFormat imageF
 
     //Set the Image Aspect Flag based on the Image Format
     VkImageAspectFlags aspect = VK_IMAGE_ASPECT_COLOR_BIT;
-    if(imageFormat = VK_FORMAT_D32_SFLOAT)
+    if(imageFormat == VK_FORMAT_D32_SFLOAT)
     {
         aspect = VK_IMAGE_ASPECT_DEPTH_BIT;
     }
     //Create the ImageView
     VkImageViewCreateInfo imageViewCreateInfo = vkinit::imageview_create_info(imageFormat, newImage._image, aspect);
+    imageViewCreateInfo.subresourceRange.levelCount = imageCreateInfo.mipLevels;
     VK_CHECK(vkCreateImageView(_device, &imageViewCreateInfo, nullptr, &newImage._imageView));
 
     //return the created Image
@@ -1182,7 +1213,7 @@ AllocatedImage VulkanEngine::createImage(void *data, VkExtent3D imageExtent, VkF
     {
         //Transition the created image from current layout to transfer destination
         vkutil::transition_Image(cmd, newImage._image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-        
+
         //Create Buffer Image Copy info with appropriate data
         VkBufferImageCopy newImageCopy = {};
         newImageCopy.bufferOffset = 0;
