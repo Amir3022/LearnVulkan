@@ -1131,7 +1131,7 @@ void VulkanEngine::destroyBuffer(const AllocatedBuffer &buffer)
     vmaDestroyBuffer(_allocator, buffer.buffer, buffer.allocation);
 }
 
-AllocatedImage VulkanEngine::createImage(VkExtent3D imageExtent, VkFormat imageFormat, VkImageUsageFlags flags, VmaMemoryUsage memUsageFlags, bool bUseMipMap)
+AllocatedImage VulkanEngine::createImage(VkExtent3D imageExtent, VkFormat imageFormat, VkImageUsageFlags usageFlags, VmaMemoryUsage memUsageFlags, bool bUseMipMap)
 {
     AllocatedImage newImage;
     //Set the Format and extent of the Allocated Image
@@ -1139,7 +1139,7 @@ AllocatedImage VulkanEngine::createImage(VkExtent3D imageExtent, VkFormat imageF
     newImage._extent = imageExtent;
 
     //Create the creation info
-    VkImageCreateInfo imageCreateInfo = vkinit::image_create_info(imageFormat, flags, imageExtent);
+    VkImageCreateInfo imageCreateInfo = vkinit::image_create_info(imageFormat, usageFlags, imageExtent);
     if(bUseMipMap)
     {
         imageCreateInfo.mipLevels = std::floor(std::log2(std::max(imageExtent.width, imageExtent.height))) + 1;
@@ -1166,20 +1166,23 @@ AllocatedImage VulkanEngine::createImage(VkExtent3D imageExtent, VkFormat imageF
     return newImage;
 }
 
-AllocatedImage VulkanEngine::createImage(void *data, VkExtent3D imageExtent, VkFormat imageFormat, VkImageUsageFlags flags, VmaMemoryUsage memUsageFlags, bool bUseMipMap)
+AllocatedImage VulkanEngine::createImage(void *data, VkExtent3D imageExtent, VkFormat imageFormat, VkImageUsageFlags usageFlags, VmaMemoryUsage memUsageFlags, bool bUseMipMap)
 {
     //Create staging buffer to use to copy data to created image
     size_t dataSize = imageExtent.width * imageExtent.height * imageExtent.depth * 4; //4 cause image has rgba elements
-    AllocatedBuffer stagingBuffer = createBuffer(dataSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
+    AllocatedBuffer stagingBuffer = createBuffer(dataSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
     //Copy data from input data to buffer allocation
     memcpy(stagingBuffer.allocationInfo.pMappedData, data, dataSize);
 
     //Create new Image with empty data using input parameters
-    AllocatedImage newImage = createImage(imageExtent, imageFormat, flags, memUsageFlags, bUseMipMap);
+    AllocatedImage newImage = createImage(imageExtent, imageFormat, usageFlags | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT, memUsageFlags, bUseMipMap);
 
     //Use Immediate Command to transfer data from staging buffer to new image
     submit_Immediate_Command([&](VkCommandBuffer cmd)
     {
+        //Transition the created image from current layout to transfer destination
+        vkutil::transition_Image(cmd, newImage._image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+        
         //Create Buffer Image Copy info with appropriate data
         VkBufferImageCopy newImageCopy = {};
         newImageCopy.bufferOffset = 0;
