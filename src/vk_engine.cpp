@@ -323,7 +323,7 @@ void VulkanEngine::init_Descriptors()
 
     //Initialize Descriptor set Layout Builder with a single buffer binding
     DescriptorLayoutBuilder gpuSceneDataDescriptorLayoutBuilder;
-    gpuSceneDataDescriptorLayoutBuilder.add_binding(9, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);  //Uniform since that data we need is small for each frame scene data
+    gpuSceneDataDescriptorLayoutBuilder.add_binding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);  //Uniform since that data we need is small for each frame scene data
     //Create gpu Scene Data descriptor layout
     _gpuSceneDescriptorSetLayout = gpuSceneDataDescriptorLayoutBuilder.build_Layout(_device, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT);
 
