@@ -36,7 +36,7 @@ struct AllocatedImage
     VkImageView _imageView;
     VmaAllocation _allocation;
     VkFormat _format;
-    VkExtent2D _extent;
+    VkExtent3D _extent;
 };
 
 struct ComputePushConstants
