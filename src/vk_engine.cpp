@@ -549,6 +549,48 @@ void VulkanEngine::init_Default_Values()
     //use the Containers to create mesh Draw Buffers
     _meshBuffers = uploadMesh(vertices, indices);
 
+    //Create Images for each default texture colors
+    glm::uint white = glm::packUnorm4x8(glm::vec4(1.0f, 1.0f, 1.0f, 1.0f));
+    _whiteTex = createImage((void*)&white, VkExtent3D(1 ,1 ,1), VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT, VMA_MEMORY_USAGE_GPU_ONLY);
+    glm::uint grey = glm::packUnorm4x8(glm::vec4(0.6f, 0.6f, 0.6f, 1.0f));
+    _greyTex = createImage((void*)&grey, VkExtent3D(1 ,1 ,1), VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT, VMA_MEMORY_USAGE_GPU_ONLY);
+    glm::uint black = glm::packUnorm4x8(glm::vec4(0.0f, 0.0f, 0.0f, 0.0f));
+    _blackTex = createImage((void*)&black, VkExtent3D(1 ,1 ,1), VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT, VMA_MEMORY_USAGE_GPU_ONLY);
+    glm::uint magenta = glm::packUnorm4x8(glm::vec4(1.0f, 0.0f, 1.0f, 1.0f));
+    std::vector<glm::uint> checkersPixels;
+    checkersPixels.reserve(16*16);
+    for(int y = 0; y < 16; y++)
+    {
+        for(int x = 0; x < 16;  x++)
+        {
+            checkersPixels[y * 16 + x] = ((x % 2 == 0) && (y % 2 == 0)) ? black : magenta;
+        }
+    }
+    _errorCheckerBoard = createImage((void*)checkersPixels.data(), VkExtent3D(16, 16, 1),VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT, VMA_MEMORY_USAGE_GPU_ONLY); 
+
+    //Create samplers for linear and nearest min and mag filtering
+    VkSamplerCreateInfo samplerCreateInfo = {};
+    samplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+    samplerCreateInfo.pNext = nullptr;
+    samplerCreateInfo.minFilter = VK_FILTER_LINEAR;
+    samplerCreateInfo.magFilter = VK_FILTER_LINEAR;
+    vkCreateSampler(_device, &samplerCreateInfo, nullptr, &_defaultSamplerLinear);
+    samplerCreateInfo.minFilter = VK_FILTER_NEAREST;
+    samplerCreateInfo.magFilter = VK_FILTER_NEAREST;
+    vkCreateSampler(_device, &samplerCreateInfo, nullptr, &_defaultSamplerNearest);
+
+    //Add the created default samplers and tex images to deletion queue
+    _mainDeletionQueue.addDeletor([&]()
+    {
+        vkDestroySampler(_device, _defaultSamplerNearest, nullptr);
+        vkDestroySampler(_device, _defaultSamplerLinear, nullptr);
+
+        destroyImage(_whiteTex);
+        destroyImage(_greyTex);
+        destroyImage(_blackTex);
+        destroyImage(_errorCheckerBoard);
+    });
+
     //Add both buffers to deletion queue
     _mainDeletionQueue.addDeletor([&]()
     {
