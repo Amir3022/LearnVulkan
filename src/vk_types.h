@@ -100,6 +100,7 @@ struct GeoSurface
 {
     uint32_t startIndex;
     size_t count;
+    std::shared_ptr<MaterialInstance> material;
 };
 
 struct MeshAsset
@@ -109,7 +110,7 @@ struct MeshAsset
     GPUMeshBuffers meshBuffers;
 };
 
-//Material related
+/** Material related */
 enum class EMaterialPass : uint8_t
 {
     MaterialColor, 
@@ -128,4 +129,68 @@ struct MaterialInstance
     MaterialPipeline* materialPipeline;
     VkDescriptorSet materialSet;
     EMaterialPass pass;
+};
+
+/** Rendering Meshes Related */
+struct RenderObject
+{
+    uint32_t startIndex;
+    uint32_t indicesCount;
+    VkBuffer indexBuffer;
+
+    MaterialInstance* material;
+
+    glm::mat4 transform;
+    VkDeviceAddress vertexBufferDeviceAddress;
+};
+
+struct DrawContext
+{
+    std::vector<RenderObject> opaqueMeshObjects;
+};
+
+//Interface for all structs and classes that will have rendering
+class IRenderable   //Interface class with pure virtual functions
+{
+    virtual void draw(const glm::mat4& topMatrix, DrawContext& ctx) = 0;
+};
+
+//Using scene graph tree like composition struct for drawable objects
+//Node will have information about local and world transform as well as 
+//Parent and child nodes
+struct Node : public IRenderable
+{
+    std::weak_ptr<Node> parentNode; //weak ptr to avoid ownership and prevent circular dependency
+    std::vector<std::shared_ptr<Node>> childNodes;
+    glm::mat4 localTransform;
+    glm::mat4 worldTransform;
+
+    //Function to update the nodes world transforms when it's parent world transform changes
+    void refreshTransform(const glm::mat4& parentTransform)
+    {
+        worldTransform = parentTransform * localTransform;
+        //Iterate through children node and do the same to them
+        for(auto childNode : childNodes)
+        {
+            childNode->refreshTransform(worldTransform);
+        }
+    }
+
+    virtual void draw(const glm::mat4& topMatrix, DrawContext& ctx) override
+    {
+        //Iterate through each child node and call draw (Draw functionality will be handled by MeshNode)
+        for(auto childNode: childNodes)
+        {
+            childNode->draw(topMatrix, ctx);
+        }
+    }
+};
+
+//MeshNode will have actual rendering logic, shared ptr to Mesh Asset
+struct MeshNode : public Node
+{
+    std::shared_ptr<MeshAsset> meshAsset;
+
+    //Will create RenderObject from each geo surface of the mesh, and add them to draw context
+    virtual void draw(const glm::mat4& topMatrix, DrawContext& ctx) override;
 };
