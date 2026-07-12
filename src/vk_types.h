@@ -84,6 +84,7 @@ struct GPUSceneData
 {
     glm::mat4 view;
     glm::mat4 proj;
+    glm::mat4 viewProj;
     glm::vec4 ambientColor;
     glm::vec4 sunlightDirection; //w is used for power
     glm::vec4 sunlightColor;
@@ -106,4 +107,25 @@ struct MeshAsset
     std::string name;
     std::vector<GeoSurface> surfaces;
     GPUMeshBuffers meshBuffers;
+};
+
+//Material related
+enum class EMaterialPass : uint8_t
+{
+    MaterialColor, 
+    Transparent,
+    Other,
+};
+
+struct MaterialPipeline
+{
+    VkPipeline pipeline;
+    VkPipelineLayout pipelineLayout;
+};
+
+struct MaterialInstance
+{
+    MaterialPipeline* materialPipeline;
+    VkDescriptorSet materialSet;
+    EMaterialPass pass;
 };
