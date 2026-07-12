@@ -625,6 +625,24 @@ void VulkanEngine::init_Default_Values()
        destroyBuffer(materialDataBuffer); 
     });
 
+    //Use loaded meshes to initialize MeshNodes and add them to loaded Nodes
+    for(auto mesh : _testMeshes)
+    {
+        //Set the Material of each surface in mesh to be the default material Instance
+        for(GeoSurface& surface : mesh->surfaces)
+        {
+            surface.material = std::make_shared<MaterialInstance>();
+            memcpy(surface.material.get(), &_defaultMatInstance, sizeof(MaterialInstance));
+        }
+        std::shared_ptr<MeshNode> newMeshNode = std::make_shared<MeshNode>();
+        newMeshNode->meshAsset = mesh;
+        newMeshNode->localTransform = glm::identity<glm::mat4>();
+        newMeshNode->worldTransform = glm::identity<glm::mat4>();
+
+        //Add the created Mesh Node to loaded Nodes
+        _loadedNodes[mesh->name] = std::move(newMeshNode);
+    }
+
     //Add the created default samplers and tex images to deletion queue
     _mainDeletionQueue.addDeletor([&]()
     {
@@ -882,8 +900,31 @@ void VulkanEngine::draw_imgui(VkCommandBuffer cmd, VkImageView targetImageView)
     vkCmdEndRendering(cmd);
 }
 
+void VulkanEngine::updateScene()
+{
+    //Reset all the added render objects to the main draw context
+    _mainDrawContext.opaqueMeshObjects.clear();
+
+    //Draw one of the loaded meshes (Use Suzanne for the monkey head)
+    if(_loadedNodes.contains("Suzanne"))
+    {
+        _loadedNodes["Suzanne"]->draw(glm::identity<glm::mat4>(), _mainDrawContext);    //topMatrix set to identity matrix drawing the Monkey head at origin
+    }
+
+    //Update the Scene data to be added to scene data descriptor
+    _gpuSceneData.view = glm::translate(glm::vec3(0.0f, 0.0f, -5.0f));
+    _gpuSceneData.proj = glm::perspective(glm::radians(45.0f), (float)_drawExtent.width / (float)_drawExtent.height, 10000.0f, 0.1f); //We are making the near plane the large value, so near place is at 1 and far plane at 0, this greatly increases depth calc accuracy
+    _gpuSceneData.proj[1][1] *= -1; //flip the scale in y direction to make the mesh in the correct orientation
+    _gpuSceneData.viewProj =  _gpuSceneData.proj *  _gpuSceneData.view;
+    _gpuSceneData.ambientColor = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);
+    _gpuSceneData.sunlightColor = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);
+    _gpuSceneData.sunlightDirection = glm::vec4(0.0f, 1.0f, 0.0f, 1.0f);
+}
+
 void VulkanEngine::draw()
 {
+    //Update the Draw Scene before even GPU finished executing current fenced command
+    updateScene();
     //Wait for the Render Fence to finish executing the current command in the Buffer, then reset it
     VK_CHECK(vkWaitForFences(_device, 1, &GetCurrentFrameData()._renderFence, true, 1000000000)); //Set wait timeout to 1 billion nano seconds = 1 seconds
     VK_CHECK(vkResetFences(_device, 1, &GetCurrentFrameData()._renderFence));
@@ -1043,36 +1084,26 @@ void VulkanEngine::draw_Geometry(VkCommandBuffer cmd)
     writer.writeBuffer(0, sceneDataBuffer.buffer, sceneDataBuffer.allocationInfo.size, sceneDataBuffer.allocationInfo.offset, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
     writer.updateSet(_device, gpuSceneDataDescriptorSet);
 
-    //Use Current Frame Data Descriptor Pool to allocate a new descriptor set for test texture
-    VkDescriptorSet testTextureDescriptorSet = GetCurrentFrameData()._descriptorsPool.allocate(_device, _testTextureDescriptorSetLayout);
-    //Use created writer to write image info to the descriptor set
-    writer.clear();
-    writer.writeImage(0, _errorCheckerBoard._imageView, _defaultSamplerNearest, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
-    writer.updateSet(_device, testTextureDescriptorSet);
+    //Iterate through Render Objects in mainDrawContext, bind the pipelines and descriptor sets, set push constants and do the indexed draw command
+    for(auto renderObject : _mainDrawContext.opaqueMeshObjects)
+    {
+        //Bind the renderObject Pipeline to draw the mesh
+        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, renderObject.material->materialPipeline->pipeline);
+        //Bind the global Scene Data descriptor set
+        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, renderObject.material->materialPipeline->pipelineLayout, 0, 1, &gpuSceneDataDescriptorSet, 0, nullptr);
+        //Bind the descriptor set to the bound pipeline
+        //vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, renderObject.material->materialPipeline->pipelineLayout, 0, 1, &renderObject.material->materialSet, 0, nullptr);
 
-    //Bind the Pipeline to draw the mesh
-    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _meshPipeline);
-    //Bind the descriptor set to the bound pipeline
-    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _meshPipelineLayout, 0, 1, &testTextureDescriptorSet, 0, nullptr);
-
-    //Draw the third mesh from test meshes loaded from glb file
-    //Setup render matrices to render the mesh
-    glm::mat4 worldMat = glm::identity<glm::mat4>();
-    //Rotate the Mesh around the y axis
-    worldMat = glm::rotate(worldMat, glm::radians((float)_frameNumber * 0.25f), glm::vec3(0.0f, 1.0f, 0.0f));
-    glm::mat4 viewMat = glm::identity<glm::mat4>();
-    viewMat = glm::translate(viewMat, glm::vec3(0.0f, 0.0f, -5.0f));
-    glm::mat4 projection = glm::perspective(glm::radians(45.0f), (float)_drawExtent.width / (float)_drawExtent.height, 10000.0f, 0.1f); //We are making the near plane the large value, so near place is at 1 and far plane at 0, this greatly increases depth calc accuracy
-    projection[1][1] *= -1; //flip the scale in y direction to make the mesh in the correct orientation
-    //Create the push constants needed to draw the mesh
-    GPUDrawPushConstants drawPushConstants = {};
-    drawPushConstants.worldTransform = projection * viewMat * worldMat;
-    drawPushConstants.vertexBufferDeviceAddress = _testMeshes[2]->meshBuffers.vertexBufferDeviceAddress;
-    vkCmdPushConstants(cmd, _meshPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(GPUDrawPushConstants), &drawPushConstants);
-    //Bind the Indices Buffer
-    vkCmdBindIndexBuffer(cmd, _testMeshes[2]->meshBuffers.indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
-    //Launch indexed draw command to draw the surface of the mesh
-    vkCmdDrawIndexed(cmd, (uint32_t)_testMeshes[2]->surfaces[0].count, 1, _testMeshes[2]->surfaces[0].startIndex, 0, 0);
+        //Create the push constants needed to draw the mesh
+        GPUDrawPushConstants drawPushConstants = {};
+        drawPushConstants.worldTransform = renderObject.transform;
+        drawPushConstants.vertexBufferDeviceAddress = renderObject.vertexBufferDeviceAddress;
+        vkCmdPushConstants(cmd, renderObject.material->materialPipeline->pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(GPUDrawPushConstants), &drawPushConstants);
+        //Bind the Indices Buffer
+        vkCmdBindIndexBuffer(cmd, renderObject.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+        //Launch indexed draw command to draw the surface of the mesh
+        vkCmdDrawIndexed(cmd, renderObject.indicesCount, 1, renderObject.startIndex, 0, 0);
+    }
 
     //End rendering command
     vkCmdEndRendering(cmd);
@@ -1440,16 +1471,14 @@ MaterialInstance GLTF_MetallicRoughMaterial::writeMaterial(VkDevice device, EMat
     writer.updateSet(device, newMaterialInstance.materialSet);
 
     //Set the Pipeline in the newly created material instance
-    MaterialPipeline pipelineToUse;
     if(materialPass == EMaterialPass::MaterialColor)
     {
-        pipelineToUse = opaquePipeline;
+        newMaterialInstance.materialPipeline = &opaquePipeline;
     }
     else if(materialPass == EMaterialPass::Transparent)
     {
-        pipelineToUse = transparentPipeline;
+        newMaterialInstance.materialPipeline = &transparentPipeline;
     }
-    newMaterialInstance.materialPipeline = &pipelineToUse;
 
     return newMaterialInstance;
 }

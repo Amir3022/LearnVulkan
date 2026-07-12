@@ -151,7 +151,7 @@ namespace vkutil
                 }
 
                 //FOR DEBUGGING, force the normal to be the color of each vertex
-                constexpr bool bOverrideColorWithNormal = true;
+                constexpr bool bOverrideColorWithNormal = false;
                 if(bOverrideColorWithNormal)
                 {
                     for(Vertex& vert : vertices)

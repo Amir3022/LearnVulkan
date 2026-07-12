@@ -126,15 +126,12 @@ private:
 	//draw loop
 	void draw();
 	void draw_Background(VkCommandBuffer cmd);
-
-	//Draw Geometry functions
 	void draw_Geometry(VkCommandBuffer cmd);
+	void draw_imgui(VkCommandBuffer cmd, VkImageView targetImageView);
+	void updateScene();
 
 	//Immediate Commands submission function
 	void submit_Immediate_Command(std::function<void(VkCommandBuffer cmd)>&& function);
-
-	//ImGui functions
-	void draw_imgui(VkCommandBuffer cmd, VkImageView targetImageView);
 
 	//Buffer Functions
 	AllocatedBuffer createBuffer(size_t bufferSize, VkBufferUsageFlags bufferUsage, VmaMemoryUsage memoryUsage);
@@ -221,6 +218,10 @@ private:
 	//Materials variables
 	MaterialInstance _defaultMatInstance;
 	GLTF_MetallicRoughMaterial _defaultMat; 
+
+	//Abstracting Mesh Rendering
+	DrawContext _mainDrawContext;
+	std::unordered_map<std::string, std::shared_ptr<Node>> _loadedNodes;
 
 	//Engine Default Colored Texture Images and samplers
 	AllocatedImage _whiteTex;
