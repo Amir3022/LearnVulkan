@@ -1083,7 +1083,8 @@ void VulkanEngine::draw_Geometry(VkCommandBuffer cmd)
 
     //Initialize Descriptor set writer and use it write buffer info into current frame scene data descriptor set
     DescriptorSetWriter writer;
-    writer.writeBuffer(0, sceneDataBuffer.buffer, sceneDataBuffer.allocationInfo.size, sceneDataBuffer.allocationInfo.offset, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
+    writer.clear();
+    writer.writeBuffer(0, sceneDataBuffer.buffer, sceneDataBuffer.allocationInfo.size, 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
     writer.updateSet(_device, _gpuSceneDataDescriptorSet);
 
     //Iterate through Render Objects in mainDrawContext, bind the pipelines and descriptor sets, set push constants and do the indexed draw command
