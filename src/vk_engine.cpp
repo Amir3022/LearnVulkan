@@ -81,9 +81,9 @@ void VulkanEngine::init()
 
     init_imgui();
 
-    init_Default_Values();
-
     init_Loaded_Mesh();
+
+    init_Default_Values();
 
     // everything went fine
     _isInitialized = true;
