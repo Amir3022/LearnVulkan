@@ -284,7 +284,7 @@ void VulkanEngine::init_Descriptors()
             1
         }
     };  
-    GlobalDescriptorAllocator.init_pool(_device, 10, poolSizeRatios);
+    _globalDescriptorAllocator.init(_device, 10, poolSizeRatios);
 
     //Use DescriptorSetLayoutBuilder to build set layout with a single binding of type storage image
     DescriptorLayoutBuilder layoutBuilder;
@@ -292,7 +292,7 @@ void VulkanEngine::init_Descriptors()
     _drawImageDescriptorSetLayout = layoutBuilder.build_Layout(_device, VK_SHADER_STAGE_COMPUTE_BIT);   //Remember to add to deletion queue
 
     //use allocator to allocate Descriptor set using the generated layout
-    _drawImageDescriptors = GlobalDescriptorAllocator.allocate(_device, _drawImageDescriptorSetLayout);
+    _drawImageDescriptors = _globalDescriptorAllocator.allocate(_device, _drawImageDescriptorSetLayout);
 
     //Use DescriptorSetWriter to write to drawImageDescriptor to draw the background
     DescriptorSetWriter writer;
@@ -336,7 +336,7 @@ void VulkanEngine::init_Descriptors()
     //Add create Descriptor Set layout and descriptor allocation pool to deletion queue (Destroying the pool will destroy any allocated sets)
     _mainDeletionQueue.addDeletor([&]()
     {
-        GlobalDescriptorAllocator.destroy_pool(_device);
+        _globalDescriptorAllocator.destroyPools(_device);
         vkDestroyDescriptorSetLayout(_device, _drawImageDescriptorSetLayout, nullptr);
         vkDestroyDescriptorSetLayout(_device, _gpuSceneDescriptorSetLayout, nullptr);
         vkDestroyDescriptorSetLayout(_device, _testTextureDescriptorSetLayout, nullptr);
@@ -965,7 +965,7 @@ void VulkanEngine::draw_Background(VkCommandBuffer cmd)
 {
     //Clear the screen with a black image
     VkClearColorValue clearColor;
-    clearColor = {0.2f, 0.2f, 0.2f, 1.0f};
+    clearColor = {0.1f, 0.1f, 0.1f, 1.0f};
     draw_functions::draw_Clear_Background(cmd, clearColor, _drawImage._image);
 
     // //Get the Selected Background effect

@@ -153,7 +153,7 @@ private:
 	VkFence _immCmdFence;
 
 	//Descriptor Variables
-	DescriptorAllocator GlobalDescriptorAllocator;
+	DescriptorAllocatorGrowable _globalDescriptorAllocator;
 	VkDescriptorSet _drawImageDescriptors;
 	VkDescriptorSetLayout _drawImageDescriptorSetLayout;
 
