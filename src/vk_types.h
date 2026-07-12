@@ -25,7 +25,7 @@
     do {                                                                \
         VkResult err = x;                                               \
         if (err) {                                                      \
-            fmt::println("Detected Vulkan error: {}", string_VkResult(err)); \
+            fmt::println("Detected Vulkan error: {} at {}, {}" , string_VkResult(err), __FILE__, __LINE__); \
             abort();                                                    \
         }                                                               \
     } while (0)
@@ -96,6 +96,7 @@ struct GPUDrawPushConstants
     VkDeviceAddress vertexBufferDeviceAddress;
 };
 
+struct MaterialInstance;
 struct GeoSurface
 {
     uint32_t startIndex;
