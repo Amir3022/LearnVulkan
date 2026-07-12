@@ -208,6 +208,7 @@ private:
 	//Scene Data Variables
 	GPUSceneData _gpuSceneData;
 	VkDescriptorSetLayout _gpuSceneDescriptorSetLayout;
+	VkDescriptorSet _gpuSceneDataDescriptorSet;
 
 	//Test Texture variables
 	VkDescriptorSetLayout _testTextureDescriptorSetLayout;

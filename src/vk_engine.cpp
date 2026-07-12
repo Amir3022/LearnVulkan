@@ -908,7 +908,9 @@ void VulkanEngine::updateScene()
     //Draw one of the loaded meshes (Use Suzanne for the monkey head)
     if(_loadedNodes.contains("Suzanne"))
     {
-        _loadedNodes["Suzanne"]->draw(glm::identity<glm::mat4>(), _mainDrawContext);    //topMatrix set to identity matrix drawing the Monkey head at origin
+        glm::mat4 worldTransform = glm::identity<glm::mat4>();
+        worldTransform = glm::rotate(worldTransform, glm::radians(_frameNumber * 0.25f), glm::vec3(0.0f, 1.0f, 0.0f));
+        _loadedNodes["Suzanne"]->draw(worldTransform, _mainDrawContext);    //topMatrix set to identity matrix drawing the Monkey head at origin
     }
 
     //Update the Scene data to be added to scene data descriptor
@@ -916,7 +918,7 @@ void VulkanEngine::updateScene()
     _gpuSceneData.proj = glm::perspective(glm::radians(45.0f), (float)_drawExtent.width / (float)_drawExtent.height, 10000.0f, 0.1f); //We are making the near plane the large value, so near place is at 1 and far plane at 0, this greatly increases depth calc accuracy
     _gpuSceneData.proj[1][1] *= -1; //flip the scale in y direction to make the mesh in the correct orientation
     _gpuSceneData.viewProj =  _gpuSceneData.proj *  _gpuSceneData.view;
-    _gpuSceneData.ambientColor = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);
+    _gpuSceneData.ambientColor = glm::vec4(0.05f, 0.05f, 0.05f, 1.0f);
     _gpuSceneData.sunlightColor = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);
     _gpuSceneData.sunlightDirection = glm::vec4(0.0f, 1.0f, 0.0f, 1.0f);
 }
@@ -1077,12 +1079,12 @@ void VulkanEngine::draw_Geometry(VkCommandBuffer cmd)
     memcpy(sceneDataBuffer.allocationInfo.pMappedData, &_gpuSceneData, sizeof(GPUSceneData));
 
     //Use Current Frame descriptor pool allocator to allocate a new descriptor set for this frame scene data
-    VkDescriptorSet gpuSceneDataDescriptorSet = GetCurrentFrameData()._descriptorsPool.allocate(_device, _gpuSceneDescriptorSetLayout);
+    _gpuSceneDataDescriptorSet = GetCurrentFrameData()._descriptorsPool.allocate(_device, _gpuSceneDescriptorSetLayout);
 
     //Initialize Descriptor set writer and use it write buffer info into current frame scene data descriptor set
     DescriptorSetWriter writer;
     writer.writeBuffer(0, sceneDataBuffer.buffer, sceneDataBuffer.allocationInfo.size, sceneDataBuffer.allocationInfo.offset, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
-    writer.updateSet(_device, gpuSceneDataDescriptorSet);
+    writer.updateSet(_device, _gpuSceneDataDescriptorSet);
 
     //Iterate through Render Objects in mainDrawContext, bind the pipelines and descriptor sets, set push constants and do the indexed draw command
     for(auto renderObject : _mainDrawContext.opaqueMeshObjects)
@@ -1090,9 +1092,9 @@ void VulkanEngine::draw_Geometry(VkCommandBuffer cmd)
         //Bind the renderObject Pipeline to draw the mesh
         vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, renderObject.material->materialPipeline->pipeline);
         //Bind the global Scene Data descriptor set
-        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, renderObject.material->materialPipeline->pipelineLayout, 0, 1, &gpuSceneDataDescriptorSet, 0, nullptr);
+        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, renderObject.material->materialPipeline->pipelineLayout, 0, 1, &_gpuSceneDataDescriptorSet, 0, nullptr);
         //Bind the descriptor set to the bound pipeline
-        //vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, renderObject.material->materialPipeline->pipelineLayout, 0, 1, &renderObject.material->materialSet, 0, nullptr);
+        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, renderObject.material->materialPipeline->pipelineLayout, 1, 1, &renderObject.material->materialSet, 0, nullptr);
 
         //Create the push constants needed to draw the mesh
         GPUDrawPushConstants drawPushConstants = {};
