@@ -71,6 +71,9 @@ void VulkanEngine::init()
         _windowExtent.height,
         window_flags);
 
+    //By default capture the mouse, hide mouse cursor
+    SDL_SetRelativeMouseMode(SDL_TRUE);
+
     //Init Vulkan Components
     init_Vulkan();
 
@@ -1157,10 +1160,26 @@ void VulkanEngine::run()
                 {
                     bQuit = true;
                 }
+                //If the mouse is captured and tab was pressed, unbind mouse capture from window
+                if(e.key.keysym.sym == SDLK_TAB && SDL_GetRelativeMouseMode() == SDL_TRUE)
+                {
+                    SDL_SetRelativeMouseMode(SDL_FALSE);
+                }
+            }
+            if(e.type == SDL_MOUSEBUTTONDOWN)
+            {
+                if((e.button.button == SDL_BUTTON_LEFT || e.button.button ==SDL_BUTTON_RIGHT) && SDL_GetRelativeMouseMode() == SDL_FALSE)
+                {
+                    SDL_SetRelativeMouseMode(SDL_TRUE);
+                }
             }
 
-            //Pass the input event to the Camera
-            _camera->processSDLEvent(e);
+            //Check if the mouse is captures
+            if(SDL_GetRelativeMouseMode() == SDL_TRUE)
+            {
+                //Pass the input event to the Camera
+                _camera->processSDLEvent(e);
+            }
 
             //Process SDL poll events on ImGui as well
             ImGui_ImplSDL2_ProcessEvent(&e);
