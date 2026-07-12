@@ -102,6 +102,7 @@ public:
 	VkDescriptorSetLayout getSceneDataLayout() {return _gpuSceneDescriptorSetLayout;}
 	AllocatedImage getDrawImage() {return _drawImage;}
 	AllocatedImage getDepthImage() {return _depthImage;}
+	float getDeltaTime() {return _deltaTime;}
 
 private:
 	//Initialize the Various Vulkan Components
@@ -145,6 +146,9 @@ private:
 	//Mesh Draw Functions
 	void init_Default_Values();
 	void init_Loaded_Mesh();
+
+	//Game Engine functions
+	void calculateDeltaTime();
 	
 private:
 	//Engine Variables
@@ -155,6 +159,8 @@ private:
 	VkExtent2D _windowExtent;
 	SDL_Window* _window;
 	deletionQueue _mainDeletionQueue;
+	float _deltaTime;
+	std::chrono::steady_clock::time_point _timeStamp;
 
 	//Vulkan Components Handles
 	VkInstance _instance;

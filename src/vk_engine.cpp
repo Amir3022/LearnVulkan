@@ -20,7 +20,6 @@
 
 #include "VkBootstrap.h"
 
-#include <chrono>
 #include <thread>
 
 VulkanEngine* loadedEngine = nullptr;
@@ -38,6 +37,8 @@ VulkanEngine::VulkanEngine()
     _renderScale = 1.0f;
     _windowExtent = { 800 , 600 };
     _window = nullptr;
+    _deltaTime = 0.0f;
+    _timeStamp = std::chrono::steady_clock::now();
 
     currentActiveBackgroundEffect = 0;
 }
@@ -1118,7 +1119,11 @@ void VulkanEngine::run()
     bool bQuit = false;
 
     // main loop
-    while (!bQuit) {
+    while (!bQuit)
+    {
+        //Calculate Engine Delta Time
+        calculateDeltaTime();
+
         // Handle events on queue
         while (SDL_PollEvent(&e) != 0)
         {
@@ -1184,9 +1189,13 @@ void VulkanEngine::run()
         // ImGui::End();
 
         //Create Slider to change render scale for the displayed rendered image
-        if(ImGui::Begin("Render Scale"))
+        if(ImGui::Begin("Info"))
         {
             ImGui::SliderFloat("Render Scale Slider Value", &_renderScale, 0.3f, 1.0f);
+            std::string formatedText = fmt::format("FrameTime: {}", getDeltaTime());
+            ImGui::Text(formatedText.c_str());
+            formatedText = fmt::format("FPS: {}", 1.0f / getDeltaTime());
+            ImGui::Text(formatedText.c_str());
         }
         ImGui::End();
 
@@ -1195,6 +1204,15 @@ void VulkanEngine::run()
 
         draw();
     }
+}
+
+void VulkanEngine::calculateDeltaTime()
+{
+    //Get the duration since last timestamp
+    std::chrono::steady_clock::time_point newTimeStamp = std::chrono::steady_clock::now();
+    std::chrono::duration<double> deltaTimeDuration = newTimeStamp - _timeStamp;
+    _deltaTime = deltaTimeDuration.count();
+    _timeStamp = newTimeStamp;  //Set current time as the new time stamp to be used next frame
 }
 
 AllocatedBuffer VulkanEngine::createBuffer(size_t bufferSize, VkBufferUsageFlags bufferUsage, VmaMemoryUsage memoryUsage)
