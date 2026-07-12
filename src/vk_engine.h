@@ -162,6 +162,9 @@ private:
 	float _deltaTime;
 	std::chrono::steady_clock::time_point _timeStamp;
 
+	//Gameplay Related Variables
+	std::shared_ptr<class Camera> _camera;
+
 	//Vulkan Components Handles
 	VkInstance _instance;
 	VkDebugUtilsMessengerEXT  _debug_Messanger;

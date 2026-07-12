@@ -9,6 +9,7 @@
 #include <vk_pipelines.h>
 #include <vk_loader.h>
 #include "draw_functions.h"
+#include "Camera.h"
 
 //Headers for Imgui
 #include "imgui.h"
@@ -41,6 +42,9 @@ VulkanEngine::VulkanEngine()
     _timeStamp = std::chrono::steady_clock::now();
 
     currentActiveBackgroundEffect = 0;
+
+    //Create Instance of the camera component
+    _camera = std::make_shared<Camera>(10.0f, 45.0f, 0.25f);
 }
 
 VulkanEngine::VulkanEngine(const VkExtent2D& inRes) : VulkanEngine()
@@ -910,13 +914,14 @@ void VulkanEngine::updateScene()
     if(_loadedNodes.contains("Suzanne"))
     {
         glm::mat4 worldTransform = glm::identity<glm::mat4>();
+        worldTransform = glm::translate(worldTransform, glm::vec3(0.0f, 0.0f, -10.0f));
         worldTransform = glm::rotate(worldTransform, glm::radians(_frameNumber * 0.25f), glm::vec3(0.0f, 1.0f, 0.0f));
         _loadedNodes["Suzanne"]->draw(worldTransform, _mainDrawContext);    //topMatrix set to identity matrix drawing the Monkey head at origin
     }
 
     //Update the Scene data to be added to scene data descriptor
-    _gpuSceneData.view = glm::translate(glm::vec3(0.0f, 0.0f, -10.0f));
-    _gpuSceneData.proj = glm::perspective(glm::radians(45.0f), (float)_drawExtent.width / (float)_drawExtent.height, 10000.0f, 0.1f); //We are making the near plane the large value, so near place is at 1 and far plane at 0, this greatly increases depth calc accuracy
+    _gpuSceneData.view = _camera->getViewMatrix();
+    _gpuSceneData.proj = glm::perspective(glm::radians(_camera->getFOV()), (float)_drawExtent.width / (float)_drawExtent.height, 10000.0f, 0.1f); //We are making the near plane the large value, so near place is at 1 and far plane at 0, this greatly increases depth calc accuracy
     _gpuSceneData.proj[1][1] *= -1; //flip the scale in y direction to make the mesh in the correct orientation
     _gpuSceneData.viewProj =  _gpuSceneData.proj *  _gpuSceneData.view;
     _gpuSceneData.ambientColor = glm::vec4(0.05f, 0.05f, 0.05f, 1.0f);
@@ -1124,6 +1129,9 @@ void VulkanEngine::run()
         //Calculate Engine Delta Time
         calculateDeltaTime();
 
+        //Update Camera component using delta Time
+        _camera->updateCamera(getDeltaTime());
+
         // Handle events on queue
         while (SDL_PollEvent(&e) != 0)
         {
@@ -1150,6 +1158,9 @@ void VulkanEngine::run()
                     bQuit = true;
                 }
             }
+
+            //Pass the input event to the Camera
+            _camera->processSDLEvent(e);
 
             //Process SDL poll events on ImGui as well
             ImGui_ImplSDL2_ProcessEvent(&e);
