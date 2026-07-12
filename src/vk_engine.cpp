@@ -914,7 +914,7 @@ void VulkanEngine::updateScene()
     }
 
     //Update the Scene data to be added to scene data descriptor
-    _gpuSceneData.view = glm::translate(glm::vec3(0.0f, 0.0f, -5.0f));
+    _gpuSceneData.view = glm::translate(glm::vec3(0.0f, 0.0f, -10.0f));
     _gpuSceneData.proj = glm::perspective(glm::radians(45.0f), (float)_drawExtent.width / (float)_drawExtent.height, 10000.0f, 0.1f); //We are making the near plane the large value, so near place is at 1 and far plane at 0, this greatly increases depth calc accuracy
     _gpuSceneData.proj[1][1] *= -1; //flip the scale in y direction to make the mesh in the correct orientation
     _gpuSceneData.viewProj =  _gpuSceneData.proj *  _gpuSceneData.view;
