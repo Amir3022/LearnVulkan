@@ -277,14 +277,16 @@ void VulkanEngine::init_Sync_Structures()
 void VulkanEngine::init_Descriptors()
 {
     //Initialize the Descriptor Pool with maxsets set to 10, each having a single binding of types Storage Image
-    std::vector<PoolSizeRatio> poolSizeRatios
+    //Create PoolSizeRatios to be used for the initializing of each frame descriptor pool
+    std::vector<PoolSizeRatio> poolSizeRatios = 
     {
-        { 
-            VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-            1
-        }
-    };  
-    _globalDescriptorAllocator.init(_device, 10, poolSizeRatios);
+        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 3},
+        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 3},
+        {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 3},
+        {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 4},
+    };
+    
+    _globalDescriptorAllocator.init(_device, 1000, poolSizeRatios);
 
     //Use DescriptorSetLayoutBuilder to build set layout with a single binding of type storage image
     DescriptorLayoutBuilder layoutBuilder;
@@ -299,20 +301,11 @@ void VulkanEngine::init_Descriptors()
     writer.writeImage(0, _drawImage._imageView, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
     writer.updateSet(_device, _drawImageDescriptors);
 
-    //Create PoolSizeRatios to be used for the initializing of each frame descriptor pool
-    std::vector<PoolSizeRatio> poolSizeRatio = 
-    {
-        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 3},
-        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 3},
-        {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 3},
-        {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 4},
-    };
-
     //For each frame data for each frame count, create a growable descriptors pool
     for(int i = 0; i < FRAME_COUNT; i++)
     {
         _frames[i]._descriptorsPool = DescriptorAllocatorGrowable();
-        _frames[i]._descriptorsPool.init(_device, 1000, poolSizeRatio);
+        _frames[i]._descriptorsPool.init(_device, 1000, poolSizeRatios);
 
         //Add the destruction of the pool to the main deletion queue
         _mainDeletionQueue.addDeletor([=, this]()
@@ -351,6 +344,9 @@ void VulkanEngine::init_Pipelines()
     //Graphics Pipelines
     init_triangle_Pipeline();
     init_mesh_Pipeline();
+
+    //build the pipelines of the default material
+    _defaultMat.buildPipeline(this);
 }
 
 void VulkanEngine::init_imgui()
@@ -598,6 +594,36 @@ void VulkanEngine::init_Default_Values()
     samplerCreateInfo.minFilter = VK_FILTER_NEAREST;
     samplerCreateInfo.magFilter = VK_FILTER_NEAREST;
     vkCreateSampler(_device, &samplerCreateInfo, nullptr, &_defaultSamplerNearest);
+
+    //Fill the default material with proper material resources
+    GLTF_MetallicRoughMaterial::MaterialResources matResources;
+    matResources.colorTexture = _whiteTex;
+    matResources.colorTextureSampler = _defaultSamplerNearest;
+    matResources.metalRoughTexture = _whiteTex;
+    matResources.metalRoughTextureSampler = _defaultSamplerNearest;
+
+    //Create Material constants to use to fill a buffer to be used for material resources
+    GLTF_MetallicRoughMaterial::MaterialConstants matData;
+    matData.colorFactors = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);
+    matData.metal_roughFactors = glm::vec4(1.0f, 0.5f, 0.0f, 0.0f);
+
+    //Create buffer to be used as material data buffer in resources struct
+    AllocatedBuffer materialDataBuffer = createBuffer(sizeof(GLTF_MetallicRoughMaterial::MaterialConstants), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
+    //Copy data from created material constants to created buffer
+    memcpy(materialDataBuffer.allocationInfo.pMappedData, &matData, sizeof(GLTF_MetallicRoughMaterial::MaterialConstants));
+
+    //Set material data values in material resources
+    matResources.materialDataBuffer = materialDataBuffer.buffer;
+    matResources.materialDataBufferOffset = 0;
+
+    //Use default material to create material instance using material resources
+    _defaultMatInstance = _defaultMat.writeMaterial(_device, EMaterialPass::MaterialColor, matResources, _globalDescriptorAllocator);
+
+    //Add created buffer to deletion queue
+    _mainDeletionQueue.addDeletor([=]()
+    {
+       destroyBuffer(materialDataBuffer); 
+    });
 
     //Add the created default samplers and tex images to deletion queue
     _mainDeletionQueue.addDeletor([&]()
@@ -1293,4 +1319,137 @@ GPUMeshBuffers VulkanEngine::uploadMesh(std::span<Vertex> vertices, std::span<ui
     destroyBuffer(stagingBuffer);
 
     return newSurfaceBuffers;
+}
+
+
+
+/** GLTF_MetalRoughnessMaterial */
+void GLTF_MetallicRoughMaterial::buildPipeline(VulkanEngine* engine)
+{
+    //Build the Material Descriptor Set Layout using engine global descriptor allocator
+    //Use DescriptorSetLayoutBuilder to build set layout with a single binding of type storage image
+    DescriptorLayoutBuilder layoutBuilder;
+    layoutBuilder.add_binding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
+    layoutBuilder.add_binding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+    layoutBuilder.add_binding(2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+    materialLayout = layoutBuilder.build_Layout(engine->getDevice(), VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT);   //Remember to add to deletion queue
+
+    //Create Pipeline layout using initializer info, and set it in the pipeline builder
+    VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = vkinit::pipeline_layout_create_info();
+
+    //Create Descriptor Set layout array with scene data descriptor set layout and material layout to be added to pipeline layout create info
+    std::array<VkDescriptorSetLayout, 2> layouts = {engine->getSceneDataLayout(), materialLayout};
+
+    //Add the Push Constant Buffer range and test texture descriptor set layout to the pipeline create info
+    VkPushConstantRange pushConstantRange = {};
+    pushConstantRange.size = sizeof(GPUDrawPushConstants);
+    pushConstantRange.offset = 0;
+    pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+
+    pipelineLayoutCreateInfo.pushConstantRangeCount = 1;
+    pipelineLayoutCreateInfo.pPushConstantRanges = &pushConstantRange;
+    pipelineLayoutCreateInfo.setLayoutCount = 2;
+    pipelineLayoutCreateInfo.pSetLayouts = layouts.data();
+
+    //Create material layout using create info
+    VkPipelineLayout materialPipelineLayout;
+    VK_CHECK(vkCreatePipelineLayout(engine->getDevice(), &pipelineLayoutCreateInfo, nullptr, &materialPipelineLayout));
+
+    //Set the Same layout to both the opaque and transparent material pipelines
+    opaquePipeline.pipelineLayout = materialPipelineLayout;
+    transparentPipeline.pipelineLayout = materialPipelineLayout;
+
+    //Create 2 Shader modules for the vertex and fragment shader
+    VkShaderModule vertexShader;
+    if(!vkutil::load_Shader_Module(SHADER_PATH "/mesh.vert.spv", engine->getDevice(), &vertexShader))
+    {
+        fmt::println("Failed to load vertex Shader: {}", SHADER_PATH "/mesh.vert.spv");
+        return;
+    }
+    VkShaderModule fragShader;
+    if(!vkutil::load_Shader_Module(SHADER_PATH "/mesh.frag.spv", engine->getDevice(), &fragShader))
+    {
+        fmt::println("Failed to load fragment Shader: {}", SHADER_PATH "/mesh.frag.spv");
+        return;
+    }
+
+    //Create Pipeline Builder, fill it's parameter to create the graphics pipeline
+    PipelineBuilder graphicsPipelineBuilder;
+    graphicsPipelineBuilder.addShaderStages(vertexShader, fragShader);
+    graphicsPipelineBuilder.setInputTopology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
+    graphicsPipelineBuilder.SetPolygonMode(VK_POLYGON_MODE_FILL);
+    graphicsPipelineBuilder.SetCullingMode(VK_CULL_MODE_NONE, VK_FRONT_FACE_CLOCKWISE); //Don't cull any face, and set the orientation clockwise (LHO)
+    graphicsPipelineBuilder.setMultisampleNone();
+    graphicsPipelineBuilder.enableDepthTest(true, VK_COMPARE_OP_GREATER_OR_EQUAL);
+    graphicsPipelineBuilder.disableBlending();
+    graphicsPipelineBuilder.setColorAttachmentFormat(engine->getDrawImage()._format);
+    graphicsPipelineBuilder.setDepthFormat(engine->getDepthImage()._format);
+    graphicsPipelineBuilder._pipelineLayout = materialPipelineLayout; 
+
+    //Use Pipeline builder to build the opaque material pipeline
+    opaquePipeline.pipeline = graphicsPipelineBuilder.build_pipeline(engine->getDevice());
+    if(opaquePipeline.pipeline == VK_NULL_HANDLE)
+    {
+        fmt::println("Failed to create opaque material pipeline, using null handle");
+        return;
+    }
+
+    //Change options in the pipeline builder to create the transparent material pipeline
+    graphicsPipelineBuilder.enableBlending(false);
+    graphicsPipelineBuilder.enableDepthTest(false, VK_COMPARE_OP_GREATER_OR_EQUAL);
+
+    //Use Pipeline builder to build the transparent material pipeline
+    transparentPipeline.pipeline = graphicsPipelineBuilder.build_pipeline(engine->getDevice());
+    if(transparentPipeline.pipeline == VK_NULL_HANDLE)
+    {
+        fmt::println("Failed to create transparent material pipeline, using null handle");
+        return;
+    }
+
+    //Destroy the created shader modules
+    vkDestroyShaderModule(engine->getDevice(), vertexShader, nullptr);
+    vkDestroyShaderModule(engine->getDevice(), fragShader, nullptr);
+}
+
+void GLTF_MetallicRoughMaterial::clearResources(VkDevice device)
+{
+    //destroy the pipelines
+    vkDestroyPipeline(device, opaquePipeline.pipeline, nullptr);
+    vkDestroyPipeline(device, transparentPipeline.pipeline, nullptr);
+    vkDestroyPipelineLayout(device, opaquePipeline.pipelineLayout, nullptr);
+    vkDestroyPipelineLayout(device, transparentPipeline.pipelineLayout, nullptr);
+    //destroy the descriptor set layout
+    vkDestroyDescriptorSetLayout(device, materialLayout, nullptr);
+}
+
+MaterialInstance GLTF_MetallicRoughMaterial::writeMaterial(VkDevice device, EMaterialPass materialPass, const MaterialResources &resources, DescriptorAllocatorGrowable &descriptorSetAllocator)
+{
+    //Create new material instance and set it's material pass type
+    MaterialInstance newMaterialInstance;
+    newMaterialInstance.pass = materialPass;
+
+    //Use Descriptor Allocator to allocate new descriptor set using material layout
+    newMaterialInstance.materialSet = descriptorSetAllocator.allocate(device, materialLayout);
+
+    //Use Writer to write material resource to descriptor set
+    writer.clear();
+    writer.writeBuffer(0, resources.materialDataBuffer, sizeof(MaterialConstants), resources.materialDataBufferOffset, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
+    writer.writeImage(1, resources.colorTexture._imageView, resources.colorTextureSampler, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+    writer.writeImage(2, resources.metalRoughTexture._imageView, resources.metalRoughTextureSampler, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+    //Update descriptor Set with data from writer
+    writer.updateSet(device, newMaterialInstance.materialSet);
+
+    //Set the Pipeline in the newly created material instance
+    MaterialPipeline pipelineToUse;
+    if(materialPass == EMaterialPass::MaterialColor)
+    {
+        pipelineToUse = opaquePipeline;
+    }
+    else if(materialPass == EMaterialPass::Transparent)
+    {
+        pipelineToUse = transparentPipeline;
+    }
+    newMaterialInstance.materialPipeline = &pipelineToUse;
+
+    return newMaterialInstance;
 }

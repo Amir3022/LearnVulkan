@@ -41,6 +41,36 @@ struct FrameData
 	DescriptorAllocatorGrowable _descriptorsPool;
 };
 
+//Material Type Structs
+struct GLTF_MetallicRoughMaterial
+{
+	MaterialPipeline opaquePipeline;
+	MaterialPipeline transparentPipeline;
+	VkDescriptorSetLayout materialLayout;
+	DescriptorSetWriter writer;
+
+	struct MaterialConstants
+	{
+		glm::vec4 colorFactors;
+		glm::vec4 metal_roughFactors;
+		glm::vec4 padding[14];	//Used for padding for when passing the constants buffer to shader	(Total constants size a multiple of 256 bytes)
+	};
+
+	struct MaterialResources
+	{
+		AllocatedImage colorTexture;
+		VkSampler colorTextureSampler;
+		AllocatedImage metalRoughTexture;
+		VkSampler metalRoughTextureSampler;
+		VkBuffer materialDataBuffer;
+		uint32_t materialDataBufferOffset;
+	};
+
+	void buildPipeline(class VulkanEngine* engine);
+	void clearResources(VkDevice device);
+	MaterialInstance writeMaterial(VkDevice device, EMaterialPass materialPass, const MaterialResources& resources, DescriptorAllocatorGrowable& descriptorSetAllocator);
+};
+
 constexpr uint32_t FRAME_COUNT = 2;
 
 class VulkanEngine {
@@ -66,6 +96,12 @@ public:
 
 	//Loading meshes Functions
 	GPUMeshBuffers uploadMesh(std::span<Vertex> vertices, std::span<uint32_t> indices);
+
+	/** Public Accessors */
+	VkDevice getDevice() {return _device;}
+	VkDescriptorSetLayout getSceneDataLayout() {return _gpuSceneDescriptorSetLayout;}
+	AllocatedImage getDrawImage() {return _drawImage;}
+	AllocatedImage getDepthImage() {return _depthImage;}
 
 private:
 	//Initialize the Various Vulkan Components
@@ -181,6 +217,10 @@ private:
 
 	//Loaded Mesh Variables
 	std::vector<std::shared_ptr<MeshAsset>> _testMeshes;
+
+	//Materials variables
+	MaterialInstance _defaultMatInstance;
+	GLTF_MetallicRoughMaterial _defaultMat; 
 
 	//Engine Default Colored Texture Images and samplers
 	AllocatedImage _whiteTex;
