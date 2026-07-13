@@ -40,8 +40,14 @@ glm::mat4 Camera::getRotationMatrix()
 
 void Camera::updateCamera(float deltaTime)
 {
-    //Update the position with velocity in the camera rotation moved by deltatime
-    _position += glm::vec3(getRotationMatrix() * glm::vec4(_velocity * deltaTime * _camSpeed, 0.0f));
+    //Update the position with horizontal velocity in the camera rotation moved by deltatime
+    glm::vec3 horizVel = glm::vec3(_velocity.x, 0.0f, _velocity.z);
+    if(glm::length(horizVel) > 0)
+        horizVel = glm::normalize(horizVel);
+    _position += glm::vec3(getRotationMatrix() * glm::vec4(horizVel * deltaTime * _camSpeed, 0.0f));
+
+    //Update vertical position in the y direction 
+    _position += glm::vec3(0.0f, 1.0f, 0.0f) * _velocity.y * deltaTime * _camSpeed;
 }
 
 void Camera::processSDLEvent(const SDL_Event& e)
@@ -56,17 +62,25 @@ void Camera::processSDLEvent(const SDL_Event& e)
             _velocity.x = 1;
         else if(e.key.keysym.sym == SDLK_a)
             _velocity.x = -1;
+        if(e.key.keysym.sym == SDLK_SPACE)
+            _velocity.y = 1;
+        else if(e.key.keysym.sym == SDLK_LCTRL)
+            _velocity.y = -1;
     }
     else if(e.type == SDL_KEYUP)
     {
         if(e.key.keysym.sym == SDLK_w)
             _velocity.z = 0;
-        if(e.key.keysym.sym == SDLK_s)
+        else if(e.key.keysym.sym == SDLK_s)
             _velocity.z = 0;
         if(e.key.keysym.sym == SDLK_d)
             _velocity.x = 0;
-        if(e.key.keysym.sym == SDLK_a)
+        else if(e.key.keysym.sym == SDLK_a)
             _velocity.x = 0;
+        if(e.key.keysym.sym == SDLK_SPACE)
+            _velocity.y = 0;
+        else if(e.key.keysym.sym == SDLK_LCTRL)
+            _velocity.y = 0;
     }
 
     //Normalize velocity so we don't end with higher speed when moving diagonal
