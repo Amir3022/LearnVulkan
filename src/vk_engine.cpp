@@ -632,6 +632,12 @@ void VulkanEngine::init_Default_Values()
     {
        destroyBuffer(materialDataBuffer); 
     });
+    
+    //Clear resources of the GLTFMetalRoughness Material template
+    _mainDeletionQueue.addDeletor([&]()
+    {
+        _defaultMat.clearResources(_device);
+    });
 
     //Use loaded meshes to initialize MeshNodes and add them to loaded Nodes
     for(auto mesh : _testMeshes)
@@ -1499,7 +1505,7 @@ void GLTF_MetallicRoughMaterial::clearResources(VkDevice device)
     vkDestroyPipeline(device, opaquePipeline.pipeline, nullptr);
     vkDestroyPipeline(device, transparentPipeline.pipeline, nullptr);
     vkDestroyPipelineLayout(device, opaquePipeline.pipelineLayout, nullptr);
-    vkDestroyPipelineLayout(device, transparentPipeline.pipelineLayout, nullptr);
+
     //destroy the descriptor set layout
     vkDestroyDescriptorSetLayout(device, materialLayout, nullptr);
 }
