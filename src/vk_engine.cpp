@@ -44,7 +44,7 @@ VulkanEngine::VulkanEngine()
     currentActiveBackgroundEffect = 0;
 
     //Create Instance of the camera component
-    _camera = std::make_shared<Camera>(10.0f, 45.0f, 0.25f);
+    _camera = std::make_shared<Camera>(5.0f, 45.0f, 0.1f);
 }
 
 VulkanEngine::VulkanEngine(const VkExtent2D& inRes) : VulkanEngine()
