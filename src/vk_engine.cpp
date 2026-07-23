@@ -645,8 +645,8 @@ void VulkanEngine::init_Default_Values()
         //Set the Material of each surface in mesh to be the default material Instance
         for(GeoSurface& surface : mesh->surfaces)
         {
-            surface.material = std::make_shared<MaterialInstance>();
-            memcpy(surface.material.get(), &_defaultMatInstance, sizeof(MaterialInstance));
+            surface.material = std::make_shared<GLTFMaterial>();
+            memcpy(&surface.material->data, &_defaultMatInstance, sizeof(MaterialInstance));
         }
         std::shared_ptr<MeshNode> newMeshNode = std::make_shared<MeshNode>();
         newMeshNode->meshAsset = mesh;

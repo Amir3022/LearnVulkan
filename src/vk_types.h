@@ -98,11 +98,12 @@ struct GPUDrawPushConstants
 };
 
 struct MaterialInstance;
+struct GLTFMaterial;
 struct GeoSurface
 {
     uint32_t startIndex;
     size_t count;
-    std::shared_ptr<MaterialInstance> material;
+    std::shared_ptr<GLTFMaterial> material;
 };
 
 struct MeshAsset
@@ -131,6 +132,11 @@ struct MaterialInstance
     MaterialPipeline* materialPipeline;
     VkDescriptorSet materialSet;
     EMaterialPass pass;
+};
+
+struct GLTFMaterial
+{
+    MaterialInstance data;
 };
 
 /** Rendering Meshes Related */
