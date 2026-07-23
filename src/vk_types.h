@@ -18,8 +18,12 @@
 
 #include <fmt/core.h>
 
+//Headers from GLM
+#include <glm/glm.hpp> 
+#include <glm/gtx/quaternion.hpp> 
+#include <glm/gtx/transform.hpp> 
+#include <glm/gtc/matrix_transform.hpp>
 #include <glm/mat4x4.hpp>
-#include <glm/vec4.hpp>
 
 
 #define VK_CHECK(x)                                                     \
@@ -201,4 +205,39 @@ struct MeshNode : public Node
 
     //Will create RenderObject from each geo surface of the mesh, and add them to draw context
     virtual void draw(const glm::mat4& topMatrix, DrawContext& ctx) override;
+};
+
+//LoadedGLTF mirrors the structure of GLTF files concerning nodes, meshes, materials, textures
+class VulkanEngine;
+struct DescriptorAllocatorGrowable;
+struct LoadedGLTF : public IRenderable
+{
+    //GLTF Asset structure components
+    std::unordered_map<std::string, std::shared_ptr<MeshAsset>> meshes;
+    std::unordered_map<std::string, std::shared_ptr<Node>> nodes;
+    std::unordered_map<std::string, std::shared_ptr<GLTFMaterial>> materials;
+    std::unordered_map<std::string, AllocatedImage> textures;
+
+    //Head Parent nodes to start the draw tree from 
+    std::vector<std::shared_ptr<Node>> parents;
+
+    //Samplers used by this Asset
+    std::vector<VkSampler> samplers;
+
+    //Single buffer for all material constant parameters (to be sized with the size of MaterialConstant * materials count)
+    AllocatedBuffer materialParametersBuffer;
+
+    //Local Descriptor Allocator used to allocated descriptors needed for asset
+    std::unique_ptr<DescriptorAllocatorGrowable> descriptorAllocator;
+
+    VulkanEngine* creator;
+
+    LoadedGLTF();
+
+    ~LoadedGLTF();
+
+    virtual void draw(const glm::mat4& topMatrix, DrawContext& ctx) override;
+
+private:
+    void clearAll();    //Clear function to free all resources used by the GLTF asset
 };

@@ -3,6 +3,8 @@
 #define VMA_IMPLEMENTATION 
 #include "vk_mem_alloc.h"
 
+#include "vk_descriptors.h"
+
 /** Rendering Related */
 void MeshNode::draw(const glm::mat4& topMatrix, DrawContext& ctx)
 {
@@ -24,4 +26,28 @@ void MeshNode::draw(const glm::mat4& topMatrix, DrawContext& ctx)
 
     //Call draw on Node, to draw all child nodes
     Node::draw(topMatrix, ctx);
+}
+
+LoadedGLTF::LoadedGLTF()
+{
+    descriptorAllocator = std::make_unique<DescriptorAllocatorGrowable>();
+}
+
+LoadedGLTF::~LoadedGLTF()
+{
+    clearAll();
+}
+
+void LoadedGLTF::draw(const glm::mat4& topMatrix, DrawContext& ctx)
+{
+    //Draw the parentNodes as they will call draw on the child nodes as well
+    for(auto node: parents)
+    {
+        node->draw(topMatrix, ctx);
+    }
+}
+
+void LoadedGLTF::clearAll()
+{
+    
 }
