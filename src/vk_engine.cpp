@@ -933,13 +933,13 @@ void VulkanEngine::updateScene()
     _mainDrawContext.opaqueMeshObjects.clear();
 
     //Draw one of the loaded meshes (Use Suzanne for the monkey head)
-    // if(_loadedNodes.contains("Suzanne"))
-    // {
-    //     glm::mat4 worldTransform = glm::identity<glm::mat4>();
-    //     worldTransform = glm::translate(worldTransform, glm::vec3(0.0f, 0.0f, -10.0f));
-    //     worldTransform = glm::rotate(worldTransform, glm::radians(_frameNumber * 0.25f), glm::vec3(0.0f, 1.0f, 0.0f));
-    //     _loadedNodes["Suzanne"]->draw(worldTransform, _mainDrawContext);    //topMatrix set to identity matrix drawing the Monkey head at origin
-    // }
+    if(_loadedNodes.contains("Suzanne"))
+    {
+        glm::mat4 worldTransform = glm::identity<glm::mat4>();
+        worldTransform = glm::translate(worldTransform, glm::vec3(0.0f, 0.0f, -10.0f));
+        worldTransform = glm::rotate(worldTransform, glm::radians(_frameNumber * 0.25f), glm::vec3(0.0f, 1.0f, 0.0f));
+        _loadedNodes["Suzanne"]->draw(worldTransform, _mainDrawContext);    //topMatrix set to identity matrix drawing the Monkey head at origin
+    }
 
     //Draw the Scene in loaded scenes
     if(_loadedScenes.contains("Structure"))
