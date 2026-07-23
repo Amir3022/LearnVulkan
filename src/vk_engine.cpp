@@ -16,9 +16,6 @@
 #include "imgui_impl_sdl2.h"
 #include "imgui_impl_vulkan.h"
 
-//Headers from GLM
-#include <glm/gtx/transform.hpp> 
-
 #include "VkBootstrap.h"
 
 #include <thread>
@@ -92,6 +89,8 @@ void VulkanEngine::init()
     init_Loaded_Mesh();
 
     init_Default_Values();
+
+    init_Loaded_Scenes();
 
     // everything went fine
     _isInitialized = true;
@@ -692,6 +691,17 @@ void VulkanEngine::init_Loaded_Mesh()
     });
 }
 
+void VulkanEngine::init_Loaded_Scenes()
+{
+    //Get the LoadedGLTF scene from file using Util Function
+    auto loadedStructureScene = vkutil::loadGLTF(this, ASSET_PATH "/structure.glb");
+    assert(loadedStructureScene.has_value());
+
+    _loadedScenes["Structure"] = loadedStructureScene.value();
+
+    //TODO - add cleanup function later
+}
+
 void VulkanEngine::init_Pipelines_Background()
 {
     //Use the VKUtils to create Shader Module using the gradient shader path
@@ -830,6 +840,9 @@ void VulkanEngine::cleanup()
         //Check for the GPU to have finished any executing operaions
         vkDeviceWaitIdle(_device);
 
+        //Clear all loaded scenes
+        _loadedScenes.clear();  //This will call the clear function as it's called in the destructor
+
         //Destroy all created components in the reverse order of creation
         //Destroy each Command Buffer by destroying the Command Buffer used to allocate (Can't destroy Commands Queue, since its something that's already there provided by VKInstance and not created)
         for (int i = 0; i < FRAME_COUNT; i++)
@@ -920,12 +933,18 @@ void VulkanEngine::updateScene()
     _mainDrawContext.opaqueMeshObjects.clear();
 
     //Draw one of the loaded meshes (Use Suzanne for the monkey head)
-    if(_loadedNodes.contains("Suzanne"))
+    // if(_loadedNodes.contains("Suzanne"))
+    // {
+    //     glm::mat4 worldTransform = glm::identity<glm::mat4>();
+    //     worldTransform = glm::translate(worldTransform, glm::vec3(0.0f, 0.0f, -10.0f));
+    //     worldTransform = glm::rotate(worldTransform, glm::radians(_frameNumber * 0.25f), glm::vec3(0.0f, 1.0f, 0.0f));
+    //     _loadedNodes["Suzanne"]->draw(worldTransform, _mainDrawContext);    //topMatrix set to identity matrix drawing the Monkey head at origin
+    // }
+
+    //Draw the Scene in loaded scenes
+    if(_loadedScenes.contains("Structure"))
     {
-        glm::mat4 worldTransform = glm::identity<glm::mat4>();
-        worldTransform = glm::translate(worldTransform, glm::vec3(0.0f, 0.0f, -10.0f));
-        worldTransform = glm::rotate(worldTransform, glm::radians(_frameNumber * 0.25f), glm::vec3(0.0f, 1.0f, 0.0f));
-        _loadedNodes["Suzanne"]->draw(worldTransform, _mainDrawContext);    //topMatrix set to identity matrix drawing the Monkey head at origin
+        _loadedScenes["Structure"]->draw(glm::mat4(1.0f), _mainDrawContext); //topMatrix set to identity matrix drawing the Structure scene at origin
     }
 
     //Update the Scene data to be added to scene data descriptor

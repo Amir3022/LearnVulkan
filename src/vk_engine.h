@@ -97,11 +97,31 @@ public:
 	//Loading meshes Functions
 	GPUMeshBuffers uploadMesh(std::span<Vertex> vertices, std::span<uint32_t> indices);
 
+	//Buffer Functions
+	AllocatedBuffer createBuffer(size_t bufferSize, VkBufferUsageFlags bufferUsage, VmaMemoryUsage memoryUsage);
+	void destroyBuffer(const AllocatedBuffer& buffer);
+
+	//Image Functions
+	AllocatedImage createImage(VkExtent3D imageExtent, VkFormat imageFormat, VkImageUsageFlags flags, VmaMemoryUsage memUsageFlags, bool bUseMipMap = false);
+	AllocatedImage createImage(void* data, VkExtent3D imageExtent, VkFormat imageFormat, VkImageUsageFlags flags, VmaMemoryUsage memUsageFlags, bool bUseMipMap = false);
+	void destroyImage(const AllocatedImage& image);
+
 	/** Public Accessors */
 	VkDevice getDevice() {return _device;}
 	VkDescriptorSetLayout getSceneDataLayout() {return _gpuSceneDescriptorSetLayout;}
 	AllocatedImage getDrawImage() {return _drawImage;}
 	AllocatedImage getDepthImage() {return _depthImage;}
+
+	//Default Material Resources
+	AllocatedImage getWhiteTexture() {return _whiteTex;}
+	AllocatedImage getGreyTexture() {return _greyTex;}
+	AllocatedImage getBlackTexture() {return _blackTex;}
+	AllocatedImage getDefaultErrorTexture() {return _errorCheckerBoard;}
+	VkSampler getDefaultLinearSampler() {return _defaultSamplerLinear;}
+	VkSampler getDefaultNearestSampler() {return _defaultSamplerNearest;}
+	GLTF_MetallicRoughMaterial* getDefaultMatTemp() {return &_defaultMat;}
+
+	//Gameplay related
 	float getDeltaTime() {return _deltaTime;}
 
 private:
@@ -134,18 +154,10 @@ private:
 	//Immediate Commands submission function
 	void submit_Immediate_Command(std::function<void(VkCommandBuffer cmd)>&& function);
 
-	//Buffer Functions
-	AllocatedBuffer createBuffer(size_t bufferSize, VkBufferUsageFlags bufferUsage, VmaMemoryUsage memoryUsage);
-	void destroyBuffer(const AllocatedBuffer& buffer);
-
-	//Image Functions
-	AllocatedImage createImage(VkExtent3D imageExtent, VkFormat imageFormat, VkImageUsageFlags flags, VmaMemoryUsage memUsageFlags, bool bUseMipMap = false);
-	AllocatedImage createImage(void* data, VkExtent3D imageExtent, VkFormat imageFormat, VkImageUsageFlags flags, VmaMemoryUsage memUsageFlags, bool bUseMipMap = false);
-	void destroyImage(const AllocatedImage& image);
-
 	//Mesh Draw Functions
 	void init_Default_Values();
 	void init_Loaded_Mesh();
+	void init_Loaded_Scenes();
 
 	//Game Engine functions
 	void calculateDeltaTime();
@@ -224,6 +236,9 @@ private:
 
 	//Loaded Mesh Variables
 	std::vector<std::shared_ptr<MeshAsset>> _testMeshes;
+
+	//Loaded Scenes Variables
+	std::unordered_map<std::string, std::shared_ptr<LoadedGLTF>> _loadedScenes;
 
 	//Materials variables
 	MaterialInstance _defaultMatInstance;
