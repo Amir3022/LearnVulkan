@@ -1,9 +1,9 @@
 #include "vk_types.h"
+#include "vk_descriptors.h"
 
 #define VMA_IMPLEMENTATION 
 #include "vk_mem_alloc.h"
 
-#include "vk_descriptors.h"
 
 /** Rendering Related */
 void MeshNode::draw(const glm::mat4& topMatrix, DrawContext& ctx)
@@ -49,5 +49,5 @@ void LoadedGLTF::draw(const glm::mat4& topMatrix, DrawContext& ctx)
 
 void LoadedGLTF::clearAll()
 {
-    
+
 }

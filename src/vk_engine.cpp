@@ -698,8 +698,6 @@ void VulkanEngine::init_Loaded_Scenes()
     assert(loadedStructureScene.has_value());
 
     _loadedScenes["Structure"] = loadedStructureScene.value();
-
-    //TODO - add cleanup function later
 }
 
 void VulkanEngine::init_Pipelines_Background()
