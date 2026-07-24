@@ -118,6 +118,7 @@ public:
 	AllocatedImage getGreyTexture() {return _greyTex;}
 	AllocatedImage getBlackTexture() {return _blackTex;}
 	AllocatedImage getDefaultErrorTexture() {return _errorCheckerBoard;}
+	bool isDefaultTexture(AllocatedImage image) {return image._image == _whiteTex._image || image._image == _greyTex._image || image._image == _blackTex._image || image._image == _errorCheckerBoard._image;}
 	VkSampler getDefaultLinearSampler() {return _defaultSamplerLinear;}
 	VkSampler getDefaultNearestSampler() {return _defaultSamplerNearest;}
 	GLTF_MetallicRoughMaterial* getDefaultMatTemp() {return &_defaultMat;}

@@ -47,5 +47,30 @@ void LoadedGLTF::draw(const glm::mat4& topMatrix, DrawContext& ctx)
 
 void LoadedGLTF::clearAll()
 {  
-    
+    //Clear the buffers in all mesh assets
+    for(auto mesh : meshes)
+    {
+        creator->destroyBuffer(mesh.second->meshBuffers.vertexBuffer);
+        creator->destroyBuffer(mesh.second->meshBuffers.indexBuffer);
+    }
+
+    //Destroy all images (make sure note to destroy any default image)
+    for(auto image : textures)
+    {
+        if(creator->isDefaultTexture(image.second))
+            continue;
+        creator->destroyImage(image.second);
+    }
+
+    //Clear the MaterialParameters buffer
+    creator->destroyBuffer(materialParametersBuffer);
+
+    //Destroy all the samplers created
+    for(auto sampler : samplers)
+    {
+        vkDestroySampler(creator->getDevice(), sampler, nullptr);
+    }
+
+    //Destroy all descriptor sets created by the descriptor allocator
+    descriptorAllocator->destroyPools(creator->getDevice());
 }
