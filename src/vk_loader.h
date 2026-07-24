@@ -1,6 +1,7 @@
 ﻿#pragma once
 
 #include "vk_types.h"
+#include "vk_renderTypes.h"
 #include <string>
 #include <optional>
 #include <filesystem>

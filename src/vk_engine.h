@@ -4,6 +4,7 @@
 #pragma once
 
 #include <vk_types.h>
+#include <vk_renderTypes.h>
 #include "vk_descriptors.h"
 
 struct SDL_Window;
