@@ -927,9 +927,6 @@ void VulkanEngine::draw_imgui(VkCommandBuffer cmd, VkImageView targetImageView)
 
 void VulkanEngine::updateScene()
 {
-    //Reset all the added render objects to the main draw context
-    _mainDrawContext.opaqueMeshObjects.clear();
-
     //Draw one of the loaded meshes (Use Suzanne for the monkey head)
     if(_loadedNodes.contains("Suzanne"))
     {
@@ -1142,6 +1139,9 @@ void VulkanEngine::draw_Geometry(VkCommandBuffer cmd)
 
     //End rendering command
     vkCmdEndRendering(cmd);
+
+    //Reset all the drawn render objects to the main draw context
+    _mainDrawContext.opaqueMeshObjects.clear();
 }
 
 void VulkanEngine::run()
