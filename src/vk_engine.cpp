@@ -1116,8 +1116,7 @@ void VulkanEngine::draw_Geometry(VkCommandBuffer cmd)
     writer.writeBuffer(0, sceneDataBuffer.buffer, sceneDataBuffer.allocationInfo.size, 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
     writer.updateSet(_device, _gpuSceneDataDescriptorSet);
 
-    //Iterate through Render Objects in mainDrawContext, bind the pipelines and descriptor sets, set push constants and do the indexed draw command
-    for(auto renderObject : _mainDrawContext.opaqueMeshObjects)
+    auto localDraw = [&](RenderObject renderObject)
     {
         //Bind the renderObject Pipeline to draw the mesh
         vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, renderObject.material->materialPipeline->pipeline);
@@ -1135,6 +1134,17 @@ void VulkanEngine::draw_Geometry(VkCommandBuffer cmd)
         vkCmdBindIndexBuffer(cmd, renderObject.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
         //Launch indexed draw command to draw the surface of the mesh
         vkCmdDrawIndexed(cmd, renderObject.indicesCount, 1, renderObject.startIndex, 0, 0);
+    };
+
+    //Iterate through Opaque Render Objects in mainDrawContext, call the local draw function
+    for(auto renderObject : _mainDrawContext.opaqueMeshObjects)
+    {
+        localDraw(renderObject);
+    }
+    //Iterate through Transparent Render Objects in mainDrawContext, call the localDraw function, must be drawn after the opaque objects to avoid having being ocluded by any opaque object
+    for(auto renderObject : _mainDrawContext.transparentMeshObjects)
+    {
+        localDraw(renderObject);
     }
 
     //End rendering command
@@ -1142,6 +1152,7 @@ void VulkanEngine::draw_Geometry(VkCommandBuffer cmd)
 
     //Reset all the drawn render objects to the main draw context
     _mainDrawContext.opaqueMeshObjects.clear();
+    _mainDrawContext.transparentMeshObjects.clear();
 }
 
 void VulkanEngine::run()

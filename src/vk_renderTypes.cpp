@@ -18,8 +18,10 @@ void MeshNode::draw(const glm::mat4& topMatrix, DrawContext& ctx)
         newRenderObject.material = &surface.material->data;
         newRenderObject.transform = nodeMatrix;
         newRenderObject.vertexBufferDeviceAddress = meshAsset->meshBuffers.vertexBufferDeviceAddress;
-
-        ctx.opaqueMeshObjects.push_back(newRenderObject);
+        if(surface.material->data.pass == EMaterialPass::MaterialColor)
+            ctx.opaqueMeshObjects.push_back(newRenderObject);
+        else if(surface.material->data.pass == EMaterialPass::Transparent)
+            ctx.transparentMeshObjects.push_back(newRenderObject);
     }
 
     //Call draw on Node, to draw all child nodes
