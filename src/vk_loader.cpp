@@ -1,5 +1,6 @@
 ﻿#include <vk_loader.h>
 #include <vk_engine.h>
+#include "vk_images.h"
 
 #include "fastgltf/glm_element_traits.hpp"
 #include "fastgltf/parser.hpp"
@@ -291,9 +292,20 @@ namespace vkutil
 
         //Asset read should be done with this order images->materials->meshes->nodes
         //Set all images to the default error material (TODO - Set actual gltf Texture)
-        for(const fastgltf::Image& image : gltfAsset.images)
+        for(fastgltf::Image& image : gltfAsset.images)
         {
-            images.push_back(engine->getDefaultErrorTexture());
+            //Try loading image using VKUtil function, if failed to load image, use error checker board texture instead
+            auto loadedImage = vkutil::loadImage(engine, gltfAsset, image);
+            if(loadedImage.has_value())
+            {
+                images.push_back(loadedImage.value());
+                loadedScene->textures[image.name.c_str()] = loadedImage.value();
+            }
+            else
+            {
+                images.push_back(engine->getDefaultErrorTexture());
+                fmt::println("Failed to load image with name: {}", image.name.c_str());
+            }
         }
 
         //Create material parameters buffer for the whole scene
