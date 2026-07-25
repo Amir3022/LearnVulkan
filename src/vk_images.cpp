@@ -1,5 +1,7 @@
 #include <vk_images.h>
 #include "vk_initializers.h"
+#include "stb_image.h"
+#include "vk_engine.h"
 
 namespace vkutil
 {
@@ -61,5 +63,83 @@ namespace vkutil
 		imageBlit2Info.filter = VK_FILTER_LINEAR;
 
 		vkCmdBlitImage2(cmd, &imageBlit2Info);
+	}
+
+	std::optional<AllocatedImage> loadImage(VulkanEngine* engine, fastgltf::Asset& gltfAsset, fastgltf::Image& image)
+	{
+		AllocatedImage newImage {};
+		int width, height, nr;
+		std::visit(fastgltf::visitor
+			{
+				[](auto& arg){},
+				[&](fastgltf::sources::URI& filepath)
+				{
+					assert(filepath.uri.isLocalPath());	//Make sure the path of the textures is on the same local directory as the gltf asset
+					assert(filepath.fileByteOffset == 0); //STB doesnt' support loading image data with offset
+					std::string path (filepath.uri.path().begin(), filepath.uri.path().end());
+					unsigned char* data = stbi_load(path.c_str(), &width, &height, &nr, 4);
+					//if data valid create extent using loaded params and create new image
+					if(data)
+					{
+						VkExtent3D imageExtent{
+							width,
+							height,
+							1,
+						};
+
+						newImage = engine->createImage(data, imageExtent, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT, VMA_MEMORY_USAGE_GPU_ONLY);
+					}
+					//free stb resources after creating allocatedImage
+					stbi_image_free(data);
+				},
+				[&](fastgltf::sources::Vector& vector)	//If image data loaded in memory as bytes in a vector
+				{
+					unsigned char* data = stbi_load_from_memory(vector.bytes.data(), vector.bytes.size(), &width, &height, &nr, 4);
+					//if data valid create extent using loaded params and create new image
+					if(data)
+					{
+						VkExtent3D imageExtent{
+							width,
+							height,
+							1,
+						};
+
+						newImage = engine->createImage(data, imageExtent, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT, VMA_MEMORY_USAGE_GPU_ONLY);
+					}
+					//free stb resources after creating allocatedImage
+					stbi_image_free(data);
+				},
+				[&](fastgltf::sources::BufferView& view)
+				{
+					fastgltf::BufferView& bufferView = gltfAsset.bufferViews[view.bufferViewIndex];
+					fastgltf::Buffer& buffer = gltfAsset.buffers[bufferView.bufferIndex];
+					std::visit(fastgltf::visitor	//We only care about VectorWithMime, since we use the LoadExternalBuffers option when loading asset, buffers are already loaded in vectors in memory
+						{
+							[](auto& arg){},
+							[&](fastgltf::sources::Vector& vector)
+							{
+								unsigned char* data = stbi_load_from_memory(vector.bytes.data(), vector.bytes.size(), &width, &height, &nr, 4);
+							//if data valid create extent using loaded params and create new image
+							if(data)
+							{
+								VkExtent3D imageExtent{
+									width,
+									height,
+									1,
+								};
+
+								newImage = engine->createImage(data, imageExtent, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT, VMA_MEMORY_USAGE_GPU_ONLY);
+							}
+							//free stb resources after creating allocatedImage
+							stbi_image_free(data);
+							}
+						},
+					buffer.data);
+				}
+			}
+			
+		,image.data);
+
+		return newImage;
 	}
 }
