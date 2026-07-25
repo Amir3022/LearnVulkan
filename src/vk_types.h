@@ -159,4 +159,5 @@ struct RenderObject
 struct DrawContext
 {
     std::vector<RenderObject> opaqueMeshObjects;
+    std::vector<RenderObject> transparentMeshObjects;
 };
