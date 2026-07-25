@@ -87,14 +87,14 @@ namespace vkutil
 							1,
 						};
 
-						newImage = engine->createImage(data, imageExtent, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT, VMA_MEMORY_USAGE_GPU_ONLY);
+						newImage = engine->createImage(data, imageExtent, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT, VMA_MEMORY_USAGE_GPU_ONLY, false);
 					}
 					//free stb resources after creating allocatedImage
 					stbi_image_free(data);
 				},
 				[&](fastgltf::sources::Vector& vector)	//If image data loaded in memory as bytes in a vector
 				{
-					unsigned char* data = stbi_load_from_memory(vector.bytes.data(), vector.bytes.size(), &width, &height, &nr, 4);
+					unsigned char* data = stbi_load_from_memory(vector.bytes.data(), static_cast<int>(vector.bytes.size()), &width, &height, &nr, 4);
 					//if data valid create extent using loaded params and create new image
 					if(data)
 					{
@@ -104,7 +104,7 @@ namespace vkutil
 							1,
 						};
 
-						newImage = engine->createImage(data, imageExtent, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT, VMA_MEMORY_USAGE_GPU_ONLY);
+						newImage = engine->createImage(data, imageExtent, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT, VMA_MEMORY_USAGE_GPU_ONLY, false);
 					}
 					//free stb resources after creating allocatedImage
 					stbi_image_free(data);
@@ -118,20 +118,20 @@ namespace vkutil
 							[](auto& arg){},
 							[&](fastgltf::sources::Vector& vector)
 							{
-								unsigned char* data = stbi_load_from_memory(vector.bytes.data(), vector.bytes.size(), &width, &height, &nr, 4);
-							//if data valid create extent using loaded params and create new image
-							if(data)
-							{
-								VkExtent3D imageExtent{
-									width,
-									height,
-									1,
-								};
+								unsigned char* data = stbi_load_from_memory(vector.bytes.data() + bufferView.byteOffset, static_cast<int>(bufferView.byteLength), &width, &height, &nr, 4);
+								//if data valid create extent using loaded params and create new image
+								if(data)
+								{
+									VkExtent3D imageExtent{
+										width,
+										height,
+										1,
+									};
 
-								newImage = engine->createImage(data, imageExtent, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT, VMA_MEMORY_USAGE_GPU_ONLY);
-							}
-							//free stb resources after creating allocatedImage
-							stbi_image_free(data);
+									newImage = engine->createImage(data, imageExtent, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT, VMA_MEMORY_USAGE_GPU_ONLY, false);
+								}
+								//free stb resources after creating allocatedImage
+								stbi_image_free(data);
 							}
 						},
 					buffer.data);
