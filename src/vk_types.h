@@ -127,8 +127,8 @@ enum class EMaterialPass : uint8_t
 
 struct MaterialPipeline
 {
-    VkPipeline pipeline;
-    VkPipelineLayout pipelineLayout;
+    VkPipeline pipeline = VK_NULL_HANDLE;
+    VkPipelineLayout pipelineLayout = VK_NULL_HANDLE;
 };
 
 struct MaterialInstance
