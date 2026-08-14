@@ -441,6 +441,7 @@ void VulkanEngine::init_triangle_Pipeline()
     VkShaderModule fragShader;
     if(!vkutil::load_Shader_Module(SHADER_PATH "/colored_triangle.frag.spv", _device, &fragShader))
     {
+        vkDestroyShaderModule(_device, vertexShader, nullptr);
         fmt::println("Failed to load fragment Shader: {}", SHADER_PATH "/colored_triangle.frag.spv");
         return;
     }
@@ -464,10 +465,10 @@ void VulkanEngine::init_triangle_Pipeline()
 
     //use the Builder to create the pipeline
     _trianglePipeline = graphicsPipelineBuilder.build_pipeline(_device);
+
     if(_trianglePipeline == VK_NULL_HANDLE)
     {
         fmt::println("Failed to create graphics pipeline, using null handle");
-        return;
     }
 
     //Destroy the created shader modules
@@ -494,6 +495,7 @@ void VulkanEngine::init_mesh_Pipeline()
     VkShaderModule fragShader;
     if(!vkutil::load_Shader_Module(SHADER_PATH "/colored_triangle.frag.spv", _device, &fragShader))
     {
+        vkDestroyShaderModule(_device, vertexShader, nullptr);
         fmt::println("Failed to load fragment Shader: {}", SHADER_PATH "/colored_triangle.frag.spv");
         return;
     }
@@ -531,10 +533,10 @@ void VulkanEngine::init_mesh_Pipeline()
 
     //use the Builder to create the pipeline
     _meshPipeline = graphicsPipelineBuilder.build_pipeline(_device);
+
     if(_meshPipeline == VK_NULL_HANDLE)
     {
         fmt::println("Failed to create mesh draw pipeline, using null handle");
-        return;
     }
 
     //Destroy the created shader modules
@@ -712,6 +714,7 @@ void VulkanEngine::init_Pipelines_Background()
     VkShaderModule skyShaderModule;
     if(!vkutil::load_Shader_Module(SHADER_PATH "/sky.comp.spv", _device, &skyShaderModule))
     {
+        vkDestroyShaderModule(_device, gradientShaderModule, nullptr);
         fmt::print("Failed to load shader module at path: {}", SHADER_PATH "/sky.comp.spv");
         return;
     }
@@ -1485,6 +1488,7 @@ void GLTF_MetallicRoughMaterial::buildPipeline(VulkanEngine* engine)
     VkShaderModule fragShader;
     if(!vkutil::load_Shader_Module(SHADER_PATH "/mesh.frag.spv", engine->getDevice(), &fragShader))
     {
+        vkDestroyShaderModule(engine->getDevice(), vertexShader, nullptr);
         fmt::println("Failed to load fragment Shader: {}", SHADER_PATH "/mesh.frag.spv");
         return;
     }
@@ -1507,7 +1511,6 @@ void GLTF_MetallicRoughMaterial::buildPipeline(VulkanEngine* engine)
     if(opaquePipeline.pipeline == VK_NULL_HANDLE)
     {
         fmt::println("Failed to create opaque material pipeline, using null handle");
-        return;
     }
 
     //Change options in the pipeline builder to create the transparent material pipeline
@@ -1519,7 +1522,6 @@ void GLTF_MetallicRoughMaterial::buildPipeline(VulkanEngine* engine)
     if(transparentPipeline.pipeline == VK_NULL_HANDLE)
     {
         fmt::println("Failed to create transparent material pipeline, using null handle");
-        return;
     }
 
     //Destroy the created shader modules
