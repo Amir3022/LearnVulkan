@@ -1291,7 +1291,7 @@ void VulkanEngine::run()
             ImGui::Text(formatedText.c_str());
             formatedText = fmt::format("Triangles Count: {}", _stats.trianglesCount);
             ImGui::Text(formatedText.c_str());
-            formatedText = fmt::format("FPS: {}", 1.0f / getDeltaTime());
+            formatedText = fmt::format("FPS: {}", 1.0f / glm::max(getDeltaTime(), 1e-6f));
             ImGui::Text(formatedText.c_str());
         }
         ImGui::End();
