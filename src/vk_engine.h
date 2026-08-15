@@ -72,6 +72,21 @@ struct GLTF_MetallicRoughMaterial
 	MaterialInstance writeMaterial(VkDevice device, EMaterialPass materialPass, const MaterialResources& resources, DescriptorAllocatorGrowable& descriptorSetAllocator);
 };
 
+struct EngineStats
+{
+	float frameTime;
+	float sceneUpdateTime;
+	float meshDrawTime;
+	uint32_t drawCalls;
+	uint32_t trianglesCount;
+
+	EngineStats()
+	:frameTime(0.0f), sceneUpdateTime(0.0f), meshDrawTime(0.0f), drawCalls(0), trianglesCount(0)
+	{
+
+	}
+};
+
 constexpr uint32_t FRAME_COUNT = 2;
 
 class VulkanEngine {
@@ -124,7 +139,7 @@ public:
 	GLTF_MetallicRoughMaterial* getDefaultMatTemp() {return &_defaultMat;}
 
 	//Gameplay related
-	float getDeltaTime() {return _deltaTime;}
+	float getDeltaTime() {return _stats.frameTime;}
 
 private:
 	//Initialize the Various Vulkan Components
@@ -160,9 +175,6 @@ private:
 	void init_Default_Values();
 	void init_Loaded_Mesh();
 	void init_Loaded_Scenes();
-
-	//Game Engine functions
-	void calculateDeltaTime();
 	
 private:
 	//Engine Variables
@@ -173,8 +185,7 @@ private:
 	VkExtent2D _windowExtent;
 	SDL_Window* _window;
 	deletionQueue _mainDeletionQueue;
-	float _deltaTime;
-	std::chrono::steady_clock::time_point _timeStamp;
+	EngineStats _stats;
 
 	//Gameplay Related Variables
 	std::shared_ptr<class Camera> _camera;

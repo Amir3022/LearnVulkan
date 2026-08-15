@@ -35,8 +35,6 @@ VulkanEngine::VulkanEngine()
     _renderScale = 1.0f;
     _windowExtent = { 800 , 600 };
     _window = nullptr;
-    _deltaTime = 0.0f;
-    _timeStamp = std::chrono::steady_clock::now();
 
     currentActiveBackgroundEffect = 0;
 
@@ -930,6 +928,9 @@ void VulkanEngine::draw_imgui(VkCommandBuffer cmd, VkImageView targetImageView)
 
 void VulkanEngine::updateScene()
 {
+    //Register start time Point
+    auto startPoint = std::chrono::steady_clock::now();
+
     //Draw one of the loaded meshes (Use Suzanne for the monkey head)
     if(_loadedNodes.contains("Suzanne"))
     {
@@ -953,6 +954,11 @@ void VulkanEngine::updateScene()
     _gpuSceneData.ambientColor = glm::vec4(0.05f, 0.05f, 0.05f, 1.0f);
     _gpuSceneData.sunlightColor = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);
     _gpuSceneData.sunlightDirection = glm::vec4(0.0f, 1.0f, 0.0f, 1.0f);
+
+    //Register end time Point
+    auto endPoint = std::chrono::steady_clock::now();
+    std::chrono::duration<double> elapsed = endPoint - startPoint;
+    _stats.sceneUpdateTime = elapsed.count();
 }
 
 void VulkanEngine::draw()
@@ -1077,6 +1083,9 @@ void VulkanEngine::draw_Background(VkCommandBuffer cmd)
 
 void VulkanEngine::draw_Geometry(VkCommandBuffer cmd)
 {
+    //Register Start Time Point
+    auto startPoint = std::chrono::steady_clock::now();
+
     //Create Render Attachment info and Render info to start rendering on drawImage
     VkRenderingAttachmentInfo renderAttachmentInfo = vkinit::attachment_info(_drawImage._imageView, nullptr, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
     VkRenderingAttachmentInfo depthAttachmentInfo = vkinit::depth_attachment_info(_depthImage._imageView, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
@@ -1119,6 +1128,9 @@ void VulkanEngine::draw_Geometry(VkCommandBuffer cmd)
     writer.writeBuffer(0, sceneDataBuffer.buffer, sceneDataBuffer.allocationInfo.size, 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
     writer.updateSet(_device, _gpuSceneDataDescriptorSet);
 
+    _stats.drawCalls = 0;
+    _stats.trianglesCount = 0;
+
     auto localDraw = [&](RenderObject renderObject)
     {
         //Bind the renderObject Pipeline to draw the mesh
@@ -1137,6 +1149,11 @@ void VulkanEngine::draw_Geometry(VkCommandBuffer cmd)
         vkCmdBindIndexBuffer(cmd, renderObject.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
         //Launch indexed draw command to draw the surface of the mesh
         vkCmdDrawIndexed(cmd, renderObject.indicesCount, 1, renderObject.startIndex, 0, 0);
+
+        //Increment the drawCalls
+        _stats.drawCalls++;
+        //Calculate the Triangles count by dividing the indices count for each draw call by 3
+        _stats.trianglesCount += renderObject.indicesCount / 3;
     };
 
     //Iterate through Opaque Render Objects in mainDrawContext, call the local draw function
@@ -1156,6 +1173,11 @@ void VulkanEngine::draw_Geometry(VkCommandBuffer cmd)
     //Reset all the drawn render objects to the main draw context
     _mainDrawContext.opaqueMeshObjects.clear();
     _mainDrawContext.transparentMeshObjects.clear();
+
+    //Register end time Point
+    auto endPoint = std::chrono::steady_clock::now();
+    std::chrono::duration<double> elapsed = endPoint - startPoint;
+    _stats.meshDrawTime = elapsed.count();
 }
 
 void VulkanEngine::run()
@@ -1166,8 +1188,8 @@ void VulkanEngine::run()
     // main loop
     while (!bQuit)
     {
-        //Calculate Engine Delta Time
-        calculateDeltaTime();
+        //Register start point
+        std::chrono::steady_clock::time_point startPoint = std::chrono::steady_clock::now();
 
         //Update Camera component using delta Time
         _camera->updateCamera(getDeltaTime());
@@ -1256,10 +1278,18 @@ void VulkanEngine::run()
         // ImGui::End();
 
         //Create Slider to change render scale for the displayed rendered image
-        if(ImGui::Begin("Info"))
+        if(ImGui::Begin("Engine Stats"))
         {
             ImGui::SliderFloat("Render Scale Slider Value", &_renderScale, 0.3f, 1.0f);
-            std::string formatedText = fmt::format("FrameTime: {}", getDeltaTime());
+            std::string formatedText = fmt::format("FrameTime: {} ms", getDeltaTime() * 1000.0f);
+            ImGui::Text(formatedText.c_str());
+            formatedText = fmt::format("Scene Update Time: {} ms", _stats.sceneUpdateTime * 1000.0f);
+            ImGui::Text(formatedText.c_str());
+            formatedText = fmt::format("Mesh Draw Time: {} ms", _stats.meshDrawTime * 1000.0f);
+            ImGui::Text(formatedText.c_str());
+            formatedText = fmt::format("Draw Calls: {}", _stats.drawCalls);
+            ImGui::Text(formatedText.c_str());
+            formatedText = fmt::format("Triangles Count: {}", _stats.trianglesCount);
             ImGui::Text(formatedText.c_str());
             formatedText = fmt::format("FPS: {}", 1.0f / getDeltaTime());
             ImGui::Text(formatedText.c_str());
@@ -1270,16 +1300,12 @@ void VulkanEngine::run()
         ImGui::Render();
 
         draw();
-    }
-}
 
-void VulkanEngine::calculateDeltaTime()
-{
-    //Get the duration since last timestamp
-    std::chrono::steady_clock::time_point newTimeStamp = std::chrono::steady_clock::now();
-    std::chrono::duration<double> deltaTimeDuration = newTimeStamp - _timeStamp;
-    _deltaTime = deltaTimeDuration.count();
-    _timeStamp = newTimeStamp;  //Set current time as the new time stamp to be used next frame
+        //Register end point
+        std::chrono::steady_clock::time_point endPoint = std::chrono::steady_clock::now();
+        std::chrono::duration<double> elapsed = endPoint - startPoint;
+        _stats.frameTime = elapsed.count();
+    }
 }
 
 AllocatedBuffer VulkanEngine::createBuffer(size_t bufferSize, VkBufferUsageFlags bufferUsage, VmaMemoryUsage memoryUsage)
