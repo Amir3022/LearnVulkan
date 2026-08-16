@@ -1281,17 +1281,17 @@ void VulkanEngine::run()
         if(ImGui::Begin("Engine Stats"))
         {
             ImGui::SliderFloat("Render Scale Slider Value", &_renderScale, 0.3f, 1.0f);
-            std::string formatedText = fmt::format("FrameTime: {} ms", getDeltaTime() * 1000.0f);
+            std::string formatedText = fmt::format("FrameTime: {:.3f} ms", getDeltaTime() * 1000.0f);
             ImGui::Text(formatedText.c_str());
-            formatedText = fmt::format("Scene Update Time: {} ms", _stats.sceneUpdateTime * 1000.0f);
+            formatedText = fmt::format("Scene Update Time: {:.3f} ms", _stats.sceneUpdateTime * 1000.0f);
             ImGui::Text(formatedText.c_str());
-            formatedText = fmt::format("Mesh Draw Time: {} ms", _stats.meshDrawTime * 1000.0f);
+            formatedText = fmt::format("Mesh Draw Time: {:.3f} ms", _stats.meshDrawTime * 1000.0f);
             ImGui::Text(formatedText.c_str());
             formatedText = fmt::format("Draw Calls: {}", _stats.drawCalls);
             ImGui::Text(formatedText.c_str());
             formatedText = fmt::format("Triangles Count: {}", _stats.trianglesCount);
             ImGui::Text(formatedText.c_str());
-            formatedText = fmt::format("FPS: {}", 1.0f / glm::max(getDeltaTime(), 1e-6f));
+            formatedText = fmt::format("FPS: {}", std::round(1.0f / glm::max(getDeltaTime(), 1e-6f)));
             ImGui::Text(formatedText.c_str());
         }
         ImGui::End();
