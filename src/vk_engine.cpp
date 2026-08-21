@@ -1081,6 +1081,8 @@ void VulkanEngine::draw_Background(VkCommandBuffer cmd)
     // draw_functions::draw_BackgroundEffects(cmd, backgroundEffect, _gradientPipelineLayout, _drawImageDescriptors, _drawExtent);
 }
 
+#define USE_SORT_OPTIMIZATION 0
+
 void VulkanEngine::draw_Geometry(VkCommandBuffer cmd)
 {
     //Register Start Time Point
@@ -1178,11 +1180,39 @@ void VulkanEngine::draw_Geometry(VkCommandBuffer cmd)
         _stats.trianglesCount += renderObject.indicesCount / 3;
     };
 
-    //Iterate through Opaque Render Objects in mainDrawContext, call the local draw function
+#if USE_SORT_OPTIMIZATION
+    //Arrange the opaque render objects to have objects with same material close to each other, if having same material, arrange those having the same index buffer
+    std::vector<size_t> opaqueMeshObjectIndices;
+    for(int i = 0; i < _mainDrawContext.opaqueMeshObjects.size(); i++)
+    {
+        opaqueMeshObjectIndices.push_back(i);
+    }
+
+    //Sort the indices vector
+    std::sort(opaqueMeshObjectIndices.begin(), opaqueMeshObjectIndices.end(), [&](const size_t iA, const size_t iB)
+    {
+        const RenderObject& roA = _mainDrawContext.opaqueMeshObjects[iA];
+        const RenderObject& roB = _mainDrawContext.opaqueMeshObjects[iB];
+        if(roA.material == roB.material)
+        {
+            return roA.indexBuffer < roB.indexBuffer;
+        }
+        return roA.material < roB.material;
+    });
+
+    //Iterate through Opaque Render Objects in mainDrawContext, call the local draw function, draw using sorted indices vector
+    for(const size_t& index : opaqueMeshObjectIndices)
+    {
+        localDraw(_mainDrawContext.opaqueMeshObjects[index]);
+    }
+
+#else
+    //Iterate through Opaque Render Objects in mainDrawContext
     for(auto renderObject : _mainDrawContext.opaqueMeshObjects)
     {
         localDraw(renderObject);
     }
+#endif
     //Iterate through Transparent Render Objects in mainDrawContext, call the localDraw function, must be drawn after the opaque objects to avoid having being ocluded by any opaque object
     for(auto renderObject : _mainDrawContext.transparentMeshObjects)
     {
