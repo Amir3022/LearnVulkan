@@ -1131,22 +1131,44 @@ void VulkanEngine::draw_Geometry(VkCommandBuffer cmd)
     _stats.drawCalls = 0;
     _stats.trianglesCount = 0;
 
+    //To Avoid binding same pipeline, record last pipeline, material instance, Index Buffer for repeated usages optimizations
+    MaterialInstance* lastMaterial = nullptr;
+    MaterialPipeline* lastPipeline = nullptr;
+    VkBuffer lastIndexBuffer = VK_NULL_HANDLE;
+
     auto localDraw = [&](RenderObject renderObject)
     {
-        //Bind the renderObject Pipeline to draw the mesh
-        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, renderObject.material->materialPipeline->pipeline);
-        //Bind the global Scene Data descriptor set
-        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, renderObject.material->materialPipeline->pipelineLayout, 0, 1, &_gpuSceneDataDescriptorSet, 0, nullptr);
-        //Bind the descriptor set to the bound pipeline
-        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, renderObject.material->materialPipeline->pipelineLayout, 1, 1, &renderObject.material->materialSet, 0, nullptr);
+        //Check if Material changes from last material
+        if(lastMaterial != renderObject.material)
+        {
+            lastMaterial = renderObject.material;
+            //Check if pipeline changes from last pipeline
+            if(lastPipeline != renderObject.material->materialPipeline)
+            {
+                lastPipeline = renderObject.material->materialPipeline;
 
+                //Bind the renderObject Pipeline to draw the mesh
+                vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, lastPipeline->pipeline);
+            }
+            //Bind the global Scene Data descriptor set
+            vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, lastPipeline->pipelineLayout, 0, 1, &_gpuSceneDataDescriptorSet, 0, nullptr);
+            //Bind the descriptor set to the bound pipeline
+            vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, lastPipeline->pipelineLayout, 1, 1, &lastMaterial->materialSet, 0, nullptr);
+        }
+        
         //Create the push constants needed to draw the mesh
         GPUDrawPushConstants drawPushConstants = {};
         drawPushConstants.worldTransform = renderObject.transform;
         drawPushConstants.vertexBufferDeviceAddress = renderObject.vertexBufferDeviceAddress;
         vkCmdPushConstants(cmd, renderObject.material->materialPipeline->pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(GPUDrawPushConstants), &drawPushConstants);
-        //Bind the Indices Buffer
-        vkCmdBindIndexBuffer(cmd, renderObject.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+        //Check if Index buffer changed from last Index Buffer
+        if(lastIndexBuffer != renderObject.indexBuffer)
+        {   
+            lastIndexBuffer = renderObject.indexBuffer;
+
+            //Bind the Indices Buffer
+            vkCmdBindIndexBuffer(cmd, renderObject.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+        }
         //Launch indexed draw command to draw the surface of the mesh
         vkCmdDrawIndexed(cmd, renderObject.indicesCount, 1, renderObject.startIndex, 0, 0);
 
@@ -1220,7 +1242,7 @@ void VulkanEngine::run()
                     bQuit = true;
                 }
                 //If the mouse is captured and tab was pressed, unbind mouse capture from window
-                if(e.key.keysym.sym == SDLK_TAB && SDL_GetRelativeMouseMode() == SDL_TRUE)
+                if(e.key.keysym.sym == SDLK_BACKQUOTE && SDL_GetRelativeMouseMode() == SDL_TRUE)
                 {
                     SDL_SetRelativeMouseMode(SDL_FALSE);
                 }
