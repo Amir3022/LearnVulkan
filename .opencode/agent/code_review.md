@@ -1,7 +1,7 @@
 ---
 description: Reviews the instructed code (files, functions, or a change) for wrong logic, memory leaks, deviations from Vulkan best practices, and behavior that does not match intent. Use when asked to review or audit specific code in this renderer.
 mode: subagent
-model: opencode-go/deepseek-v4-flash
+model: openai/gpt-5.6-luna
 permission:
   bash: allow
   edit: deny

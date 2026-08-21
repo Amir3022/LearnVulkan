@@ -1,7 +1,7 @@
 ---
 description: Reviews Vulkan and VMA resources for leaks. Full scan of ./src on first run; afterwards only code changed since the last committed entry. Run to verify cleanup of Vulkan objects and VMA allocations.
 mode: subagent
-model: opencode-go/deepseek-v4-flash
+model: openai/gpt-5.6-luna
 permission:
   bash: allow
   edit:
