@@ -1081,7 +1081,7 @@ void VulkanEngine::draw_Background(VkCommandBuffer cmd)
     // draw_functions::draw_BackgroundEffects(cmd, backgroundEffect, _gradientPipelineLayout, _drawImageDescriptors, _drawExtent);
 }
 
-#define USE_SORT_OPTIMIZATION 1
+#define USE_SORT_OPTIMIZATION 0
 
 void VulkanEngine::draw_Geometry(VkCommandBuffer cmd)
 {
