@@ -77,11 +77,12 @@ struct EngineStats
 	float frameTime;
 	float sceneUpdateTime;
 	float meshDrawTime;
+	float drawSortTime;
 	uint32_t drawCalls;
 	uint32_t trianglesCount;
 
 	EngineStats()
-	:frameTime(0.0f), sceneUpdateTime(0.0f), meshDrawTime(0.0f), drawCalls(0), trianglesCount(0)
+	:frameTime(0.0f), sceneUpdateTime(0.0f), meshDrawTime(0.0f), drawSortTime(0.0f), drawCalls(0), trianglesCount(0)
 	{
 
 	}

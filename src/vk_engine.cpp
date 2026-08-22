@@ -1181,6 +1181,8 @@ void VulkanEngine::draw_Geometry(VkCommandBuffer cmd)
     };
 
 #if USE_SORT_OPTIMIZATION
+    //Register Sort opaque draw objects start time
+    std::chrono::steady_clock::time_point startSort = std::chrono::steady_clock::now();
     //Arrange the opaque render objects to have objects with same material close to each other, if having same material, arrange those having the same index buffer
     std::vector<size_t> opaqueMeshObjectIndices;
     for(int i = 0; i < _mainDrawContext.opaqueMeshObjects.size(); i++)
@@ -1200,12 +1202,16 @@ void VulkanEngine::draw_Geometry(VkCommandBuffer cmd)
         return roA.material < roB.material;
     });
 
+    //Calculate draw sort time
+    std::chrono::steady_clock::time_point endSort = std::chrono::steady_clock::now();
+    std::chrono::duration<double> sortDuration = endSort - startSort;
+    _stats.drawSortTime = sortDuration.count();
+
     //Iterate through Opaque Render Objects in mainDrawContext, call the local draw function, draw using sorted indices vector
     for(const size_t& index : opaqueMeshObjectIndices)
     {
         localDraw(_mainDrawContext.opaqueMeshObjects[index]);
     }
-
 #else
     //Iterate through Opaque Render Objects in mainDrawContext
     for(auto renderObject : _mainDrawContext.opaqueMeshObjects)
@@ -1339,6 +1345,10 @@ void VulkanEngine::run()
             ImGui::Text(formatedText.c_str());
             formatedText = fmt::format("Mesh Draw Time: {:.3f} ms", _stats.meshDrawTime * 1000.0f);
             ImGui::Text(formatedText.c_str());
+#if USE_SORT_OPTIMIZATION
+            formatedText = fmt::format("Sort Draw Objects Time: {:.3f} ms", _stats.drawSortTime * 1000.0f);
+            ImGui::Text(formatedText.c_str());
+#endif
             formatedText = fmt::format("Draw Calls: {}", _stats.drawCalls);
             ImGui::Text(formatedText.c_str());
             formatedText = fmt::format("Triangles Count: {}", _stats.trianglesCount);
