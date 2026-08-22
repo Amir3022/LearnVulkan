@@ -78,6 +78,13 @@ struct Vertex
     glm::vec4 color;
 };
 
+struct Bounds
+{
+    glm::vec3 origin;
+    glm::vec3 extents;
+    float sphereRadius;
+};
+
 struct GPUMeshBuffers
 {
     AllocatedBuffer vertexBuffer;
@@ -107,6 +114,7 @@ struct GeoSurface
 {
     uint32_t startIndex;
     size_t count;
+    Bounds bounds;
     std::shared_ptr<GLTFMaterial> material;
 };
 
@@ -152,6 +160,7 @@ struct RenderObject
 
     MaterialInstance* material;
 
+    Bounds bounds;
     glm::mat4 transform;
     VkDeviceAddress vertexBufferDeviceAddress;
 };

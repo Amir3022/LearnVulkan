@@ -120,8 +120,6 @@ namespace vkutil
                        indices.push_back(idx + (uint32_t)initialVertCount); 
                     });
                 }
-                //Add the GeoSurface to meshAsset surfaces
-                newMeshAsset.surfaces.push_back(newSurface);
                 
                 //Check if the primitive attributes has position attribute
                 auto posAttrib = primitive.findAttribute("POSITION");
@@ -188,6 +186,18 @@ namespace vkutil
                         vertices[initialVertCount + idx].uv_y = uv.y;
                     });
                 }
+                
+                //Calculate bounds for surface using vertices locations
+                glm::vec3 minVert = vertices[initialVertCount].position;
+                glm::vec3 maxVert = vertices[initialVertCount].position;
+                for(size_t i = initialVertCount; i < vertices.size(); i++)
+                {
+                    minVert = glm::min(minVert, vertices[i].position);
+                    maxVert = glm::max(maxVert, vertices[i].position);
+                }
+                newSurface.bounds.origin = (minVert + maxVert) / 2.0f;
+                newSurface.bounds.extents = (maxVert - minVert) / 2.0f;
+                newSurface.bounds.sphereRadius = glm::length(newSurface.bounds.extents);
 
                 //FOR DEBUGGING, force the normal to be the color of each vertex
                 constexpr bool bOverrideColorWithNormal = false;
@@ -198,6 +208,9 @@ namespace vkutil
                         vert.color = glm::vec4(vert.normal, 1.0);
                     }
                 }
+
+                //Add the GeoSurface to meshAsset surfaces
+                newMeshAsset.surfaces.push_back(newSurface);
             }
             //Use the engine to upload the vertices and indices vectors, and use them to create mesh buffers
             newMeshAsset.meshBuffers = engine.uploadMesh(vertices, indices);
@@ -417,9 +430,7 @@ namespace vkutil
                 {
                     newSurface.material = materials[0];
                 }
-                //Add the GeoSurface to meshAsset surfaces
-                newMesh->surfaces.push_back(newSurface);
-                
+                                
                 //Check if the primitive attributes has position attribute
                 auto posAttrib = primitive.findAttribute("POSITION");
                 if(posAttrib != primitive.attributes.end())
@@ -485,6 +496,21 @@ namespace vkutil
                         vertices[initialVertCount + idx].uv_y = uv.y;
                     });
                 }
+
+                //Calculate bounds for surface using vertices locations
+                glm::vec3 minVert = vertices[initialVertCount].position;
+                glm::vec3 maxVert = vertices[initialVertCount].position;
+                for(size_t i = initialVertCount; i < vertices.size(); i++)
+                {
+                    minVert = glm::min(minVert, vertices[i].position);
+                    maxVert = glm::max(maxVert, vertices[i].position);
+                }
+                newSurface.bounds.origin = (minVert + maxVert) / 2.0f;
+                newSurface.bounds.extents = (maxVert - minVert) / 2.0f;
+                newSurface.bounds.sphereRadius = glm::length(newSurface.bounds.extents);
+
+                //Add the GeoSurface to meshAsset surfaces
+                newMesh->surfaces.push_back(newSurface);
             }
             //Use the engine to upload the vertices and indices vectors, and use them to create mesh buffers
             newMesh->meshBuffers = engine->uploadMesh(vertices, indices);

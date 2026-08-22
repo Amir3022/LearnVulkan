@@ -10,6 +10,7 @@ Camera::Camera()
     _velocity = glm::vec3(0.0f);
     _position = glm::vec3(0.0f);
     _pitch = _yaw = 0.0f;
+    _bUseFrustumCulling = false;
 
     _FOV = 45.0f;
     _camSpeed = 5.0f;
@@ -36,6 +37,50 @@ glm::mat4 Camera::getRotationMatrix()
     glm::quat pitchQuat = glm::angleAxis(glm::radians(_pitch), glm::vec3(1.0f, 0.0, 0.0f));
 
     return glm::toMat4(yawQuat) * glm::toMat4(pitchQuat);
+}
+
+bool Camera::isObjectVisible(const RenderObject &renderObject, const glm::mat4& viewProj)
+{
+    if(_bUseFrustumCulling)
+    {
+        //Get 8 corner points in NDC directions
+        std::array<glm::vec3, 8> corners =
+        {
+            glm::vec3(1.0f, 1.0f, 1.0f),
+            glm::vec3(-1.0f, 1.0f, 1.0f),
+            glm::vec3(1.0f, -1.0f, 1.0f),
+            glm::vec3(1.0f, 1.0f, -1.0f),
+            glm::vec3(-1.0f, -1.0f, -1.0f),
+            glm::vec3(1.0f, -1.0f, -1.0f),
+            glm::vec3(-1.0f, 1.0f, -1.0f),
+            glm::vec3(-1.0f, -1.0f, 1.0f),
+        };
+
+        glm::vec3 minPoint = glm::vec3(1.5f, 1.5f, 1.5f);
+        glm::vec3 maxPoint = glm::vec3(-1.5f, -1.5f, -1.5f);
+
+        //Iterate through corners, get bounds extents in directions of corners, use them to get the min and max points
+        for(size_t i = 0; i < corners.size(); i++)
+        {
+            glm::vec4 objectCorner = viewProj * renderObject.transform * glm::vec4(renderObject.bounds.origin + renderObject.bounds.extents * corners[i], 1.0f);
+
+            //Get NDC coordinate by dividing by w value
+            objectCorner.x /= objectCorner.w;
+            objectCorner.y /= objectCorner.w;
+            objectCorner.z /= objectCorner.w;
+
+            //Update min and max points
+            minPoint = glm::min(minPoint, glm::vec3(objectCorner));
+            maxPoint = glm::max(maxPoint, glm::vec3(objectCorner));
+        }
+
+        //Check if min and max point go out of visible bounds
+        if(minPoint.z > 1.0f || maxPoint.z < 0.0f || minPoint.x > 1.0f || maxPoint.x < -1.0f || minPoint.y > 1.0f || maxPoint.y < -1.0f)
+            return false;
+
+        return true;
+    }
+    return true;
 }
 
 void Camera::updateCamera(float deltaTime)

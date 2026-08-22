@@ -16,6 +16,11 @@ public:
 
     float getFOV() {return _FOV;}
 
+    bool isUsingFrustumCulling() {return _bUseFrustumCulling;}
+    void toggleFrustumCulling(bool bState) {_bUseFrustumCulling = bState;}
+
+    bool isObjectVisible(const RenderObject& renderObject, const glm::mat4& viewProj);
+
     void updateCamera(float deltaTime);
 
     void processSDLEvent(const SDL_Event& e);
@@ -24,6 +29,7 @@ private:
     float _FOV;
     float _camSpeed;
     float _camSensitiviy;
+    bool _bUseFrustumCulling;
 
     glm::vec3 _velocity;
     glm::vec3 _position;

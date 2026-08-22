@@ -1081,7 +1081,7 @@ void VulkanEngine::draw_Background(VkCommandBuffer cmd)
     // draw_functions::draw_BackgroundEffects(cmd, backgroundEffect, _gradientPipelineLayout, _drawImageDescriptors, _drawExtent);
 }
 
-#define USE_SORT_OPTIMIZATION 0
+#define USE_SORT_OPTIMIZATION 1
 
 void VulkanEngine::draw_Geometry(VkCommandBuffer cmd)
 {
@@ -1187,7 +1187,8 @@ void VulkanEngine::draw_Geometry(VkCommandBuffer cmd)
     std::vector<size_t> opaqueMeshObjectIndices;
     for(int i = 0; i < _mainDrawContext.opaqueMeshObjects.size(); i++)
     {
-        opaqueMeshObjectIndices.push_back(i);
+        if(_camera && _camera->isObjectVisible( _mainDrawContext.opaqueMeshObjects[i], _gpuSceneData.viewProj))
+            opaqueMeshObjectIndices.push_back(i);
     }
 
     //Sort the indices vector
@@ -1216,7 +1217,8 @@ void VulkanEngine::draw_Geometry(VkCommandBuffer cmd)
     //Iterate through Opaque Render Objects in mainDrawContext
     for(auto renderObject : _mainDrawContext.opaqueMeshObjects)
     {
-        localDraw(renderObject);
+        if(_camera && _camera->isObjectVisible(renderObject, _gpuSceneData.viewProj))
+            localDraw(renderObject);
     }
 #endif
     //Iterate through Transparent Render Objects in mainDrawContext, call the localDraw function, must be drawn after the opaque objects to avoid having being ocluded by any opaque object
@@ -1355,6 +1357,13 @@ void VulkanEngine::run()
             ImGui::Text(formatedText.c_str());
             formatedText = fmt::format("FPS: {}", std::round(1.0f / glm::max(getDeltaTime(), 1e-6f)));
             ImGui::Text(formatedText.c_str());
+
+            if(_camera)
+            {
+                bool localUseFrustumCulling = _camera->isUsingFrustumCulling();
+                ImGui::Checkbox("Use Camera Frustum Culling", &localUseFrustumCulling);
+                _camera->toggleFrustumCulling(localUseFrustumCulling);
+            }
         }
         ImGui::End();
 

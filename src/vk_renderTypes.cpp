@@ -17,6 +17,7 @@ void MeshNode::draw(const glm::mat4& topMatrix, DrawContext& ctx)
         newRenderObject.indexBuffer = meshAsset->meshBuffers.indexBuffer.buffer;
         newRenderObject.material = &surface.material->data;
         newRenderObject.transform = nodeMatrix;
+        newRenderObject.bounds = surface.bounds;
         newRenderObject.vertexBufferDeviceAddress = meshAsset->meshBuffers.vertexBufferDeviceAddress;
         if(surface.material->data.pass == EMaterialPass::MaterialColor)
             ctx.opaqueMeshObjects.push_back(newRenderObject);
