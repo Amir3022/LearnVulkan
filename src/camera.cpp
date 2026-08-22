@@ -60,9 +60,10 @@ bool Camera::isObjectVisible(const RenderObject &renderObject, const glm::mat4& 
         glm::vec3 maxPoint = glm::vec3(-1.5f, -1.5f, -1.5f);
 
         //Iterate through corners, get bounds extents in directions of corners, use them to get the min and max points
+        glm::mat4 matrix = viewProj * renderObject.transform;
         for(size_t i = 0; i < corners.size(); i++)
         {
-            glm::vec4 objectCorner = viewProj * renderObject.transform * glm::vec4(renderObject.bounds.origin + renderObject.bounds.extents * corners[i], 1.0f);
+            glm::vec4 objectCorner =  matrix * glm::vec4(renderObject.bounds.origin + renderObject.bounds.extents * corners[i], 1.0f);
 
             //Get NDC coordinate by dividing by w value
             objectCorner.x /= objectCorner.w;
