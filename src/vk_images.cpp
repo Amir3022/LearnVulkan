@@ -20,6 +20,7 @@ namespace vkutil
 
 		VkImageAspectFlags image_Aspect_Flag = (newLayout == VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL) ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
 		VkImageSubresourceRange image_Subresource_Range = vkinit::image_subresource_range(image_Aspect_Flag);
+		image_Barrier.subresourceRange = image_Subresource_Range;
 
 		VkDependencyInfo dep_Info{ .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO };
 		dep_Info.pNext = nullptr;
@@ -65,6 +66,77 @@ namespace vkutil
 		vkCmdBlitImage2(cmd, &imageBlit2Info);
 	}
 
+	void createMipmaps(VkCommandBuffer cmd, VkImage image, VkExtent2D imageSize)
+	{
+		//Calculate the max mip levels from the larger dimension
+		int mipLevels = std::floor(glm::log2((float)glm::max(imageSize.width, imageSize.height))) + 1;
+		for(size_t mip = 0; mip < mipLevels; mip++)
+		{
+			VkExtent2D halfSize = imageSize;
+			halfSize.width = glm::max(1.0f, std::floor(halfSize.width / 2.0f));
+			halfSize.height = glm::max(1.0f, std::floor(halfSize.height / 2.0f));
+
+			//Transition the Image from destination to source
+			VkImageMemoryBarrier2 image_Barrier = { .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2, .pNext = nullptr};
+			image_Barrier.srcStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
+			image_Barrier.srcAccessMask = VK_ACCESS_2_MEMORY_WRITE_BIT;
+			image_Barrier.dstStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
+			image_Barrier.dstAccessMask = VK_ACCESS_2_MEMORY_WRITE_BIT | VK_ACCESS_2_MEMORY_READ_BIT;
+			image_Barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+			image_Barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+		
+			VkImageAspectFlags image_Aspect_Flag = VK_IMAGE_ASPECT_COLOR_BIT;
+			VkImageSubresourceRange image_Subresource_Range = vkinit::image_subresource_range(image_Aspect_Flag);
+			image_Barrier.subresourceRange = image_Subresource_Range;
+			image_Barrier.subresourceRange.baseMipLevel = mip;
+			image_Barrier.subresourceRange.levelCount = 1;
+			image_Barrier.image = image;
+
+			VkDependencyInfo dep_Info{ .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO , .pNext = nullptr};
+			dep_Info.imageMemoryBarrierCount = 1;
+			dep_Info.pImageMemoryBarriers = &image_Barrier;
+
+			vkCmdPipelineBarrier2(cmd, &dep_Info);
+
+			//If not last mipmap, copy the halved image to the original image as an extra mipmap level
+			if(mip < mipLevels - 1)
+			{
+				VkImageBlit2 imageBlit2Region = {.sType = VK_STRUCTURE_TYPE_IMAGE_BLIT_2, .pNext = nullptr};
+				imageBlit2Region.srcOffsets[1].x = imageSize.width;
+				imageBlit2Region.srcOffsets[1].y = imageSize.height;
+				imageBlit2Region.srcOffsets[1].z = 1;
+				imageBlit2Region.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+				imageBlit2Region.srcSubresource.baseArrayLayer = 0;
+				imageBlit2Region.srcSubresource.layerCount = 1;
+				imageBlit2Region.srcSubresource.mipLevel = mip;
+
+				imageBlit2Region.dstOffsets[1].x = halfSize.width;
+				imageBlit2Region.dstOffsets[1].y = halfSize.height;
+				imageBlit2Region.dstOffsets[1].z = 1;
+				imageBlit2Region.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+				imageBlit2Region.dstSubresource.baseArrayLayer = 0;
+				imageBlit2Region.dstSubresource.layerCount = 1;
+				imageBlit2Region.dstSubresource.mipLevel = mip + 1;
+
+				VkBlitImageInfo2 imageBlit2Info = {.sType = VK_STRUCTURE_TYPE_BLIT_IMAGE_INFO_2, .pNext = nullptr};
+				imageBlit2Info.srcImage = image;
+				imageBlit2Info.srcImageLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+				imageBlit2Info.dstImage = image;
+				imageBlit2Info.dstImageLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+				imageBlit2Info.regionCount = 1;
+				imageBlit2Info.pRegions = &imageBlit2Region;
+				imageBlit2Info.filter = VK_FILTER_LINEAR;
+
+				vkCmdBlitImage2(cmd, &imageBlit2Info);
+
+				imageSize = halfSize;
+			}
+		}
+
+		//Transition the Image from transition source to Shader read only optimal
+		transition_Image(cmd, image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+	}
+
 	std::optional<AllocatedImage> loadImage(VulkanEngine* engine, fastgltf::Asset& gltfAsset, fastgltf::Image& image)
 	{
 		AllocatedImage newImage {};
@@ -87,7 +159,7 @@ namespace vkutil
 							1,
 						};
 
-						newImage = engine->createImage(data, imageExtent, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT, VMA_MEMORY_USAGE_GPU_ONLY, false);
+						newImage = engine->createImage(data, imageExtent, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT, VMA_MEMORY_USAGE_GPU_ONLY, true);
 					}
 					//free stb resources after creating allocatedImage
 					stbi_image_free(data);
@@ -104,7 +176,7 @@ namespace vkutil
 							1,
 						};
 
-						newImage = engine->createImage(data, imageExtent, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT, VMA_MEMORY_USAGE_GPU_ONLY, false);
+						newImage = engine->createImage(data, imageExtent, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT, VMA_MEMORY_USAGE_GPU_ONLY, true);
 					}
 					//free stb resources after creating allocatedImage
 					stbi_image_free(data);
@@ -128,7 +200,7 @@ namespace vkutil
 										1,
 									};
 
-									newImage = engine->createImage(data, imageExtent, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT, VMA_MEMORY_USAGE_GPU_ONLY, false);
+									newImage = engine->createImage(data, imageExtent, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT, VMA_MEMORY_USAGE_GPU_ONLY, true);
 								}
 								//free stb resources after creating allocatedImage
 								stbi_image_free(data);

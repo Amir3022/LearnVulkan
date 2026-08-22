@@ -1470,8 +1470,16 @@ AllocatedImage VulkanEngine::createImage(void *data, VkExtent3D imageExtent, VkF
         //use Copy command to transfer the data
         vkCmdCopyBufferToImage(cmd, stagingBuffer.buffer, newImage._image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &newImageCopy);
 
-        //Transition the image from it's current layout to shader usage only
-        vkutil::transition_Image(cmd, newImage._image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+        if(bUseMipMap)
+        {
+            //use the create MipMap helper function to create mipmaps for the created image data
+            vkutil::createMipmaps(cmd, newImage._image, VkExtent2D(newImage._extent.width, newImage._extent.height));
+        }
+        else
+        {        
+            //Transition the image from it's current layout to shader usage only
+            vkutil::transition_Image(cmd, newImage._image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+        }
     });
 
     //Destroy the created staging buffer
