@@ -5,6 +5,7 @@ C++20 Vulkan renderer, a personal learning project extended from the vkguide tut
 ## Working rules
 - Never commit or push. Read git history / blame freely.
 - Do not create any files or folders without asking first.
+- Do not invoke any agent or subagent unless explicitly instructed by the user.
 - Only touch `CMakeLists.txt` when asked; do not run the build (cmake/msbuild) unless explicitly requested.
 
 ## Build (CMake)
