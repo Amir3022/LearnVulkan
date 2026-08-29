@@ -791,6 +791,20 @@ void VulkanEngine::init_Pipelines_Background()
 void VulkanEngine::init_boundsDebug_Pipeline()
 {
     //Build Bounds Mesh pipeline with only one bound set, the GPU Scene Descriptor set
+    //Create 2 Shader modules for the vertex and fragment shaders
+    VkShaderModule vertexShader;
+    if(!vkutil::load_Shader_Module(SHADER_PATH "/bounds_debug.vert.spv", _device, &vertexShader))
+    {
+        fmt::println("Failed to load vertex Shader: {}", SHADER_PATH "/bounds_debug.vert.spv");
+        return;
+    }
+    VkShaderModule fragShader;
+    if(!vkutil::load_Shader_Module(SHADER_PATH "/bounds_debug.frag.spv", _device, &fragShader))
+    {
+        vkDestroyShaderModule(_device, vertexShader, nullptr);
+        fmt::println("Failed to load fragment Shader: {}", SHADER_PATH "/bounds_debug.frag.spv");
+        return;
+    }
     //Create Pipeline layout using initializer info, and set it in the pipeline builder
     VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = vkinit::pipeline_layout_create_info();
     //Add the Push Constant Buffer range to the pipeline create info
@@ -810,21 +824,6 @@ void VulkanEngine::init_boundsDebug_Pipeline()
 
     //Set the created pipeline layout as the layout in the bounds Pipeline struct
     _boundsDrawPipeline.pipelineLayout = boundsDataPipelineLayout;
-
-    //Create 2 Shader modules for the vertex and fragment shaders
-    VkShaderModule vertexShader;
-    if(!vkutil::load_Shader_Module(SHADER_PATH "/bounds_debug.vert.spv", _device, &vertexShader))
-    {
-        fmt::println("Failed to load vertex Shader: {}", SHADER_PATH "/bounds_debug.vert.spv");
-        return;
-    }
-    VkShaderModule fragShader;
-    if(!vkutil::load_Shader_Module(SHADER_PATH "/bounds_debug.frag.spv", _device, &fragShader))
-    {
-        vkDestroyShaderModule(_device, vertexShader, nullptr);
-        fmt::println("Failed to load fragment Shader: {}", SHADER_PATH "/bounds_debug.frag.spv");
-        return;
-    }
 
     //Create the Pipeline builder, fill its parameters to create bounds draw pipeline
     PipelineBuilder boundsPipelineBuilder;
