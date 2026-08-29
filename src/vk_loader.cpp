@@ -56,17 +56,17 @@ BoundsSurface generateBoundSurface(const Bounds& bounds, std::vector<Vertex>& bo
     uint32_t initlaVertCount = (uint32_t)boundVertices.size();
 
     //Get 8 corner points in NDC directions
-        std::array<glm::vec3, 8> corners =
-        {
-            glm::vec3(-1.0f, 1.0f, 1.0f),   //0
-            glm::vec3(1.0f, 1.0f, 1.0f),    //1
-            glm::vec3(-1.0f, -1.0f, 1.0f),  //2
-            glm::vec3(1.0f, -1.0f, 1.0f),   //3
-            glm::vec3(-1.0f, 1.0f, -1.0f),  //4
-            glm::vec3(1.0f, 1.0f, -1.0f),   //5
-            glm::vec3(-1.0f, -1.0f, -1.0f), //6
-            glm::vec3(1.0f, -1.0f, -1.0f),  //7
-        };
+    std::array<glm::vec3, 8> corners =
+    {
+        glm::vec3(-1.0f, 1.0f, 1.0f),   //0
+        glm::vec3(1.0f, 1.0f, 1.0f),    //1
+        glm::vec3(-1.0f, -1.0f, 1.0f),  //2
+        glm::vec3(1.0f, -1.0f, 1.0f),   //3
+        glm::vec3(-1.0f, 1.0f, -1.0f),  //4
+        glm::vec3(1.0f, 1.0f, -1.0f),   //5
+        glm::vec3(-1.0f, -1.0f, -1.0f), //6
+        glm::vec3(1.0f, -1.0f, -1.0f),  //7
+    };
 
     //Create local containers for vertices and indices
     std::array<Vertex, 8> localVertices;

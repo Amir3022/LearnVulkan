@@ -832,7 +832,7 @@ void VulkanEngine::init_boundsDebug_Pipeline()
     boundsPipelineBuilder.SetPolygonMode(VK_POLYGON_MODE_LINE);
     boundsPipelineBuilder.SetCullingMode(VK_CULL_MODE_NONE, VK_FRONT_FACE_CLOCKWISE);
     boundsPipelineBuilder.setMultisampleNone();
-    boundsPipelineBuilder.disableDepthTest();
+    boundsPipelineBuilder.enableDepthTest(true, VK_COMPARE_OP_GREATER_OR_EQUAL);
     boundsPipelineBuilder.disableBlending();
     boundsPipelineBuilder.setColorAttachmentFormat(getDrawImage()._format);
     boundsPipelineBuilder.setDepthFormat(getDepthImage()._format);
@@ -1015,7 +1015,7 @@ void VulkanEngine::updateScene()
     }
 
     //Draw the Scene in loaded scenes
-    if(_loadedScenes.contains("Structure") && false)
+    if(_loadedScenes.contains("Structure"))
     {
         _loadedScenes["Structure"]->draw(glm::mat4(1.0f), _mainDrawContext); //topMatrix set to identity matrix drawing the Structure scene at origin
     }

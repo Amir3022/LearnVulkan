@@ -46,14 +46,14 @@ bool Camera::isObjectVisible(const RenderObject &renderObject, const glm::mat4& 
         //Get 8 corner points in NDC directions
         std::array<glm::vec3, 8> corners =
         {
-            glm::vec3(1.0f, 1.0f, 1.0f),
-            glm::vec3(-1.0f, 1.0f, 1.0f),
-            glm::vec3(1.0f, -1.0f, 1.0f),
-            glm::vec3(1.0f, 1.0f, -1.0f),
-            glm::vec3(-1.0f, -1.0f, -1.0f),
-            glm::vec3(1.0f, -1.0f, -1.0f),
-            glm::vec3(-1.0f, 1.0f, -1.0f),
-            glm::vec3(-1.0f, -1.0f, 1.0f),
+            glm::vec3(-1.0f, 1.0f, 1.0f),   //0
+            glm::vec3(1.0f, 1.0f, 1.0f),    //1
+            glm::vec3(-1.0f, -1.0f, 1.0f),  //2
+            glm::vec3(1.0f, -1.0f, 1.0f),   //3
+            glm::vec3(-1.0f, 1.0f, -1.0f),  //4
+            glm::vec3(1.0f, 1.0f, -1.0f),   //5
+            glm::vec3(-1.0f, -1.0f, -1.0f), //6
+            glm::vec3(1.0f, -1.0f, -1.0f),  //7
         };
 
         glm::vec3 minPoint = glm::vec3(1.5f, 1.5f, 1.5f);
