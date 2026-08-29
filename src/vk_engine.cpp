@@ -1335,6 +1335,7 @@ void VulkanEngine::draw_Geometry(VkCommandBuffer cmd)
     //Reset all the drawn render objects to the main draw context
     _mainDrawContext.opaqueMeshObjects.clear();
     _mainDrawContext.transparentMeshObjects.clear();
+    _mainDrawContext.debugMeshObjects.clear();
 
     //Register end time Point
     auto endPoint = std::chrono::steady_clock::now();
