@@ -61,9 +61,20 @@ bool Camera::isObjectVisible(const RenderObject &renderObject, const glm::mat4& 
 
         //Iterate through corners, get bounds extents in directions of corners, use them to get the min and max points
         glm::mat4 matrix = viewProj * renderObject.transform;
+
+        bool bHasFrontCorner = false;
+        bool bHasBehindCorner = false;
         for(size_t i = 0; i < corners.size(); i++)
         {
             glm::vec4 objectCorner =  matrix * glm::vec4(renderObject.bounds.origin + renderObject.bounds.extents * corners[i], 1.0f);
+
+            if(objectCorner.w <= 0.0f)
+            {
+                bHasBehindCorner = true;
+                continue;
+            }
+
+            bHasFrontCorner = true;
 
             //Get NDC coordinate by dividing by w value
             objectCorner.x /= objectCorner.w;
@@ -74,6 +85,12 @@ bool Camera::isObjectVisible(const RenderObject &renderObject, const glm::mat4& 
             minPoint = glm::min(minPoint, glm::vec3(objectCorner));
             maxPoint = glm::max(maxPoint, glm::vec3(objectCorner));
         }
+
+        if (!bHasFrontCorner)
+            return false; // Entire box is behind the camera.
+
+        if (bHasBehindCorner)
+            return true; // Box crosses the camera plane; do not risk false culling.
 
         //Check if min and max point go out of visible bounds
         if(minPoint.z > 1.0f || maxPoint.z < 0.0f || minPoint.x > 1.0f || maxPoint.x < -1.0f || minPoint.y > 1.0f || maxPoint.y < -1.0f)
