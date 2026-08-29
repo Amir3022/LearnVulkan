@@ -38,6 +38,8 @@ VulkanEngine::VulkanEngine()
 
     currentActiveBackgroundEffect = 0;
 
+    _bShowBounds = false;
+
     //Create Instance of the camera component
     _camera = std::make_shared<Camera>(5.0f, 45.0f, 0.1f);
 }
@@ -349,6 +351,7 @@ void VulkanEngine::init_Pipelines()
     //Graphics Pipelines
     init_triangle_Pipeline();
     init_mesh_Pipeline();
+    init_boundsDebug_Pipeline();
 
     //build the pipelines of the default material
     _defaultMat.buildPipeline(this);
@@ -687,6 +690,8 @@ void VulkanEngine::init_Loaded_Mesh()
         {
             destroyBuffer(mesh->meshBuffers.indexBuffer);
             destroyBuffer(mesh->meshBuffers.vertexBuffer);
+            destroyBuffer(mesh->boundsBuffers.indexBuffer);
+            destroyBuffer(mesh->boundsBuffers.vertexBuffer);
         }
     });
 }
@@ -780,6 +785,76 @@ void VulkanEngine::init_Pipelines_Background()
             vkDestroyPipeline(_device, computeEffect.pipeline, nullptr);
         }
         vkDestroyPipelineLayout(_device, _gradientPipelineLayout, nullptr);
+    });
+}
+
+void VulkanEngine::init_boundsDebug_Pipeline()
+{
+    //Build Bounds Mesh pipeline with only one bound set, the GPU Scene Descriptor set
+    //Create Pipeline layout using initializer info, and set it in the pipeline builder
+    VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = vkinit::pipeline_layout_create_info();
+    //Add the Push Constant Buffer range to the pipeline create info
+    VkPushConstantRange pushConstantRange = {};
+    pushConstantRange.size = sizeof(GPUDrawPushConstants);
+    pushConstantRange.offset = 0;
+    pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+
+    pipelineLayoutCreateInfo.pushConstantRangeCount = 1;
+    pipelineLayoutCreateInfo.pPushConstantRanges = &pushConstantRange;
+    pipelineLayoutCreateInfo.setLayoutCount = 1;
+    pipelineLayoutCreateInfo.pSetLayouts = &_gpuSceneDescriptorSetLayout;
+
+    //Create the Bounds Mesh Pipeline layout using the layout create info
+    VkPipelineLayout boundsDataPipelineLayout;
+    VK_CHECK(vkCreatePipelineLayout(_device, &pipelineLayoutCreateInfo, nullptr, &boundsDataPipelineLayout));
+
+    //Set the created pipeline layout as the layout in the bounds Pipeline struct
+    _boundsDrawPipeline.pipelineLayout = boundsDataPipelineLayout;
+
+    //Create 2 Shader modules for the vertex and fragment shaders
+    VkShaderModule vertexShader;
+    if(!vkutil::load_Shader_Module(SHADER_PATH "/bounds_debug.vert.spv", _device, &vertexShader))
+    {
+        fmt::println("Failed to load vertex Shader: {}", SHADER_PATH "/bounds_debug.vert.spv");
+        return;
+    }
+    VkShaderModule fragShader;
+    if(!vkutil::load_Shader_Module(SHADER_PATH "/bounds_debug.frag.spv", _device, &fragShader))
+    {
+        vkDestroyShaderModule(_device, vertexShader, nullptr);
+        fmt::println("Failed to load fragment Shader: {}", SHADER_PATH "/bounds_debug.frag.spv");
+        return;
+    }
+
+    //Create the Pipeline builder, fill its parameters to create bounds draw pipeline
+    PipelineBuilder boundsPipelineBuilder;
+    boundsPipelineBuilder.addShaderStages(vertexShader, fragShader);
+    boundsPipelineBuilder.setInputTopology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
+    boundsPipelineBuilder.SetPolygonMode(VK_POLYGON_MODE_LINE);
+    boundsPipelineBuilder.SetCullingMode(VK_CULL_MODE_NONE, VK_FRONT_FACE_CLOCKWISE);
+    boundsPipelineBuilder.setMultisampleNone();
+    boundsPipelineBuilder.disableDepthTest();
+    boundsPipelineBuilder.disableBlending();
+    boundsPipelineBuilder.setColorAttachmentFormat(getDrawImage()._format);
+    boundsPipelineBuilder.setDepthFormat(getDepthImage()._format);
+    boundsPipelineBuilder._pipelineLayout = boundsDataPipelineLayout;
+
+    //Use Pipeline builder to build the bounds pipeline
+    _boundsDrawPipeline.pipeline = boundsPipelineBuilder.build_pipeline(_device);
+    if(_boundsDrawPipeline.pipeline == VK_NULL_HANDLE)
+    {
+        fmt::println("Failed to create bounds debug pipeline, using null handle");
+    }
+
+    //Destroy the used Vertex and Fragment shaders
+    vkDestroyShaderModule(_device, vertexShader, nullptr);
+    vkDestroyShaderModule(_device, fragShader, nullptr);
+
+    //Add the created pipeline to main deletion queue
+    _mainDeletionQueue.addDeletor([=]()
+    {
+       vkDestroyPipeline(_device, _boundsDrawPipeline.pipeline, nullptr);
+       vkDestroyPipelineLayout(_device, _boundsDrawPipeline.pipelineLayout, nullptr);
     });
 }
 
@@ -941,7 +1016,7 @@ void VulkanEngine::updateScene()
     }
 
     //Draw the Scene in loaded scenes
-    if(_loadedScenes.contains("Structure"))
+    if(_loadedScenes.contains("Structure") && false)
     {
         _loadedScenes["Structure"]->draw(glm::mat4(1.0f), _mainDrawContext); //topMatrix set to identity matrix drawing the Structure scene at origin
     }
@@ -1180,6 +1255,25 @@ void VulkanEngine::draw_Geometry(VkCommandBuffer cmd)
         _stats.trianglesCount += renderObject.indicesCount / 3;
     };
 
+    //Local lambda function, to bind the debug pipeline and draw the debug bounding boxes meshes
+    auto debugDraw = [&](const RenderObject& renderObject)
+    {
+        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _boundsDrawPipeline.pipeline);
+        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _boundsDrawPipeline.pipelineLayout, 0, 1, &_gpuSceneDataDescriptorSet, 0, nullptr);
+
+        //Create push constants needed to draw bounding box
+        GPUDrawPushConstants drawPushConstants = {};
+        drawPushConstants.worldTransform = renderObject.transform;
+        drawPushConstants.vertexBufferDeviceAddress = renderObject.vertexBufferDeviceAddress;
+        vkCmdPushConstants(cmd, _boundsDrawPipeline.pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(GPUDrawPushConstants), &drawPushConstants);
+
+        //Bind the Index buffer
+        vkCmdBindIndexBuffer(cmd, renderObject.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+
+        //Launch Indexed draw command
+        vkCmdDrawIndexed(cmd, renderObject.indicesCount, 1, renderObject.startIndex, 0, 0);
+    };
+
 #if USE_SORT_OPTIMIZATION
     //Register Sort opaque draw objects start time
     std::chrono::steady_clock::time_point startSort = std::chrono::steady_clock::now();
@@ -1225,6 +1319,15 @@ void VulkanEngine::draw_Geometry(VkCommandBuffer cmd)
     for(auto renderObject : _mainDrawContext.transparentMeshObjects)
     {
         localDraw(renderObject);
+    }
+
+    //Iterate through debug bounds Render Objects in mainDrawContext, call debugDraw function, only if option enabled
+    if(_bShowBounds)
+    {    
+        for(auto renderObject: _mainDrawContext.debugMeshObjects)
+        {
+            debugDraw(renderObject);
+        }
     }
 
     //End rendering command
@@ -1364,6 +1467,9 @@ void VulkanEngine::run()
                 ImGui::Checkbox("Use Camera Frustum Culling", &localUseFrustumCulling);
                 _camera->toggleFrustumCulling(localUseFrustumCulling);
             }
+
+            //Check box to show bounding boxes
+            ImGui::Checkbox("Show Bounding Boxes", &_bShowBounds);
         }
         ImGui::End();
 
@@ -1564,7 +1670,7 @@ void GLTF_MetallicRoughMaterial::buildPipeline(VulkanEngine* engine)
     //Create Descriptor Set layout array with scene data descriptor set layout and material layout to be added to pipeline layout create info
     std::array<VkDescriptorSetLayout, 2> layouts = {engine->getSceneDataLayout(), materialLayout};
 
-    //Add the Push Constant Buffer range and test texture descriptor set layout to the pipeline create info
+    //Add the Push Constant Buffer range to the pipeline create info
     VkPushConstantRange pushConstantRange = {};
     pushConstantRange.size = sizeof(GPUDrawPushConstants);
     pushConstantRange.offset = 0;
@@ -1598,7 +1704,7 @@ void GLTF_MetallicRoughMaterial::buildPipeline(VulkanEngine* engine)
         return;
     }
 
-    //Create Pipeline Builder, fill it's parameter to create the graphics pipeline
+    //Create Pipeline Builder, fill its parameter to create the graphics pipeline
     PipelineBuilder graphicsPipelineBuilder;
     graphicsPipelineBuilder.addShaderStages(vertexShader, fragShader);
     graphicsPipelineBuilder.setInputTopology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);

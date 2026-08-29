@@ -44,6 +44,79 @@ VkSamplerMipmapMode getVulkanMipMapMode(fastgltf::Filter gltfFilter)
     return returnMode;
 }
 
+constexpr uint32_t fixedCount = 6 * 6;
+
+BoundsSurface generateBoundSurface(const Bounds& bounds, std::vector<Vertex>& boundVertices, std::vector<uint32_t>& boundIndices)
+{
+    //Create new Bounds Surface
+    BoundsSurface newBoundsSurface;
+    newBoundsSurface.startIndex = (uint32_t)boundIndices.size();
+    newBoundsSurface.count = fixedCount;    //Set the indices count to a fixed number (6 indices per face (3 for each triangle), 6 faces )
+
+    uint32_t initlaVertCount = (uint32_t)boundVertices.size();
+
+    //Get 8 corner points in NDC directions
+        std::array<glm::vec3, 8> corners =
+        {
+            glm::vec3(-1.0f, 1.0f, 1.0f),   //0
+            glm::vec3(1.0f, 1.0f, 1.0f),    //1
+            glm::vec3(-1.0f, -1.0f, 1.0f),  //2
+            glm::vec3(1.0f, -1.0f, 1.0f),   //3
+            glm::vec3(-1.0f, 1.0f, -1.0f),  //4
+            glm::vec3(1.0f, 1.0f, -1.0f),   //5
+            glm::vec3(-1.0f, -1.0f, -1.0f), //6
+            glm::vec3(1.0f, -1.0f, -1.0f),  //7
+        };
+
+    //Create local containers for vertices and indices
+    std::array<Vertex, 8> localVertices;
+    std::array<uint32_t, fixedCount> localIndices =
+    {
+        0, 3, 1,
+        0, 2, 3,
+
+        1, 7, 5,
+        1, 3, 7,
+
+        5, 6, 4,
+        5, 7, 6,
+
+        4, 2, 0,
+        4, 6, 2,
+
+        4, 1, 5,
+        4, 0, 1,
+
+        2, 7, 3,
+        2, 6, 7
+    };
+
+    //Generate new vertex for each corner
+    for(size_t i = 0; i < corners.size(); i++)
+    {
+        Vertex newVertex;
+        newVertex.position = bounds.origin + bounds.extents * corners[i];
+        newVertex.normal = glm::vec3(0.0f);
+        newVertex.uv_x = newVertex.uv_y = 0.0f;
+        newVertex.color = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);
+
+        //Add the new Vertex to local vertices array
+        localVertices[i] = newVertex;
+    }
+
+    //Append the local vertices to the bounds Vertices
+    boundVertices.insert(boundVertices.end(), localVertices.begin(), localVertices.end());
+
+    //Add each index to the boundIndices vector added with initial vertex count
+    for(size_t index = 0; index < localIndices.size(); index++)
+    {
+        boundIndices.push_back(localIndices[index] + initlaVertCount);
+    }
+
+    //return the created bounds surface
+    return newBoundsSurface;
+}
+
 namespace vkutil
 {
     std::optional<std::vector<std::shared_ptr<MeshAsset>>> loadMeshFromFile(VulkanEngine &engine, std::filesystem::path path)
@@ -80,6 +153,9 @@ namespace vkutil
         //Create containers to hold the read vertices and indices from each submesh
         std::vector<Vertex> vertices;
         std::vector<uint32_t> indices; 
+        //Containers for the generated vertices and indices for bounds representation
+        std::vector<Vertex> boundVertices;
+        std::vector<uint32_t> boundIndices;
 
         for(const auto &mesh : gltfAsset.meshes)
         {
@@ -91,6 +167,8 @@ namespace vkutil
             //Reset the Vertex and index vectors to avoid cojoinging different meshes
             vertices.clear();
             indices.clear();
+            boundVertices.clear();
+            boundIndices.clear();
 
             //Iterate through primitives of each mesh, and read indeices and vertex data and add them to the containers
             for(const auto& primitive : mesh.primitives)
@@ -211,9 +289,15 @@ namespace vkutil
 
                 //Add the GeoSurface to meshAsset surfaces
                 newMeshAsset.surfaces.push_back(newSurface);
+
+                //Create BoundsSurface and add it to newMesh bound surfaces array
+                newMeshAsset.boundSurfaces.push_back(generateBoundSurface(newSurface.bounds, boundVertices, boundIndices));
             }
             //Use the engine to upload the vertices and indices vectors, and use them to create mesh buffers
             newMeshAsset.meshBuffers = engine.uploadMesh(vertices, indices);
+
+            //Use Engine to upload bounds mesh vertices and indices vector, and use them to create boundbuffers
+            newMeshAsset.boundsBuffers = engine.uploadMesh(boundVertices, boundIndices);
 
             meshAssets.push_back(std::make_shared<MeshAsset>(std::move(newMeshAsset)));
         }
@@ -378,6 +462,11 @@ namespace vkutil
         //Create containers to hold the read vertices and indices from each submesh
         std::vector<Vertex> vertices;
         std::vector<uint32_t> indices; 
+
+        //Containers for the generated vertices and indices for bounds representation
+        std::vector<Vertex> boundVertices;
+        std::vector<uint32_t> boundIndices;
+
         for(const fastgltf::Mesh& mesh : gltfAsset.meshes)
         {
             //Create new meshAsset to hold the data for each submesh
@@ -391,6 +480,8 @@ namespace vkutil
             //Reset the Vertex and index vectors to avoid cojoinging different meshes
             vertices.clear();
             indices.clear();
+            boundVertices.clear();
+            boundIndices.clear();
 
             //Iterate through primitives of each mesh, and read indeices and vertex data and add them to the containers
             for(const auto& primitive : mesh.primitives)
@@ -511,9 +602,15 @@ namespace vkutil
 
                 //Add the GeoSurface to meshAsset surfaces
                 newMesh->surfaces.push_back(newSurface);
+
+                //Create BoundsSurface and add it to newMesh bound surfaces array
+                newMesh->boundSurfaces.push_back(generateBoundSurface(newSurface.bounds, boundVertices, boundIndices));
             }
             //Use the engine to upload the vertices and indices vectors, and use them to create mesh buffers
             newMesh->meshBuffers = engine->uploadMesh(vertices, indices);
+
+            //Use Engine to upload bounds mesh vertices and indices vector, and use them to create boundbuffers
+            newMesh->boundsBuffers = engine->uploadMesh(boundVertices, boundIndices);
         }
 
         //Read Nodes data from GLTFAsset

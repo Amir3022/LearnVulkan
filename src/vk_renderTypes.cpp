@@ -24,6 +24,18 @@ void MeshNode::draw(const glm::mat4& topMatrix, DrawContext& ctx)
         else if(surface.material->data.pass == EMaterialPass::Transparent)
             ctx.transparentMeshObjects.push_back(newRenderObject);
     }
+    //Iterate through bounds surfaces from mesh, create renderObjects and add them to draw Context
+    for(const BoundsSurface& boundsSurface : meshAsset->boundSurfaces)
+    {
+        RenderObject newRenderObject;
+        newRenderObject.startIndex = boundsSurface.startIndex;
+        newRenderObject.indicesCount = (uint32_t)boundsSurface.count;
+        newRenderObject.indexBuffer = meshAsset->boundsBuffers.indexBuffer.buffer;
+        newRenderObject.vertexBufferDeviceAddress = meshAsset->boundsBuffers.vertexBufferDeviceAddress;
+        newRenderObject.transform = nodeMatrix;
+        newRenderObject.material = nullptr;
+        ctx.debugMeshObjects.push_back(newRenderObject);
+    }
 
     //Call draw on Node, to draw all child nodes
     Node::draw(topMatrix, ctx);
@@ -53,8 +65,13 @@ void LoadedGLTF::clearAll()
     //Clear the buffers in all mesh assets
     for(auto mesh : meshes)
     {
+        //Destroy MeshBuffers
         creator->destroyBuffer(mesh.second->meshBuffers.vertexBuffer);
         creator->destroyBuffer(mesh.second->meshBuffers.indexBuffer);
+
+        //Destroy BoundsBuffers
+        creator->destroyBuffer(mesh.second->boundsBuffers.vertexBuffer);
+        creator->destroyBuffer(mesh.second->boundsBuffers.indexBuffer);
     }
 
     //Destroy all images (make sure note to destroy any default image)

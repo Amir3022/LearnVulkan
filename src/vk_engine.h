@@ -161,6 +161,7 @@ private:
 
 	//Pipeline Functions
 	void init_Pipelines_Background();
+	void init_boundsDebug_Pipeline();
 
 	//draw loop
 	void draw();
@@ -262,6 +263,10 @@ private:
 	DrawContext _mainDrawContext;
 	std::unordered_map<std::string, std::shared_ptr<Node>> _loadedNodes;
 
+	//Drawing Mesh surfaces Bounds
+	MaterialPipeline _boundsDrawPipeline;
+	bool _bShowBounds;
+	
 	//Engine Default Colored Texture Images and samplers
 	AllocatedImage _whiteTex;
 	AllocatedImage _greyTex;

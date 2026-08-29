@@ -118,11 +118,20 @@ struct GeoSurface
     std::shared_ptr<GLTFMaterial> material;
 };
 
+//Bounds Debugging
+struct BoundsSurface
+{
+    uint32_t startIndex;
+    size_t count;
+};
+
 struct MeshAsset
 {
     std::string name;
     std::vector<GeoSurface> surfaces;
     GPUMeshBuffers meshBuffers;
+    std::vector<BoundsSurface> boundSurfaces;
+    GPUMeshBuffers boundsBuffers;
 };
 
 /** Material related */
@@ -169,4 +178,5 @@ struct DrawContext
 {
     std::vector<RenderObject> opaqueMeshObjects;
     std::vector<RenderObject> transparentMeshObjects;
+    std::vector<RenderObject> debugMeshObjects;
 };
