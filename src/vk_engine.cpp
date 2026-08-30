@@ -1441,7 +1441,7 @@ void VulkanEngine::run()
         // ImGui::End();
 
         //Create Slider to change render scale for the displayed rendered image
-        if(ImGui::Begin("Engine Stats"))
+        if(ImGui::Begin("Engine Stats", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
         {
             ImGui::SliderFloat("Render Scale Slider Value", &_renderScale, 0.3f, 1.0f);
             std::string formatedText = fmt::format("FrameTime: {:.3f} ms", getDeltaTime() * 1000.0f);
