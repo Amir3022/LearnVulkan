@@ -1,6 +1,10 @@
 # Chapter 6 — GPU-Driven Rendering
 ## Continuing VKGuide after Chapter 5 with Vulkan 1.3, Dynamic Rendering, and modern indirect drawing
 
+> **Deep-understanding edition (September 2026).**
+ These theory interludes are intentionally designed to explain the machine-level or mathematical reason behind each major architecture choice, so you can derive unfamiliar solutions rather than memorize patterns.
+
+
 > **Where this chapter starts**
 >
 > This tutorial assumes you have completed the current VKGuide **Chapters 0 through 5**, including the **Faster Draw** section at the end of Chapter 5.
@@ -235,6 +239,222 @@ vkCmdDrawIndexedIndirectCount()
 ```
 
 For the first implementation, the `DrawContext` will still be generated every frame. Later in the chapter we will discuss turning this into a retained GPU scene so static objects do not need to be rebuilt every frame.
+
+---
+
+## Theory interlude — the CPU/GPU execution model behind GPU-driven rendering
+
+Before implementing the checkpoints below, it is worth understanding **why GPU-driven rendering exists at all**. If the only mental model you keep is “indirect drawing is faster,” you will know a technique but not the engineering problem it solves.
+
+### A draw call is not just a function call
+
+When C++ executes:
+
+```cpp
+vkCmdDrawIndexed(cmd, indexCount, 1, firstIndex, 0, firstInstance);
+```
+
+nothing is rendered immediately. The CPU is recording a description of future GPU work into a command buffer. Before the GPU eventually executes that draw, the CPU side has already done work such as:
+
+```text
+game/world traversal
+      |
+      v
+visibility / sorting
+      |
+      v
+choose pipeline/material/mesh
+      |
+      v
+record Vulkan commands
+      |
+      v
+submit command buffer
+      |
+      v
+GPU command processor
+      |
+      v
+vertex/fragment/compute hardware
+```
+
+The important observation is that **the CPU and GPU are independent processors connected by queues and memory**. The CPU should ideally prepare work while the GPU executes previous work. If the CPU spends too much time rebuilding thousands of tiny draw decisions every frame, the GPU may become underfed even when the GPU itself has plenty of capacity.
+
+### What actually scales poorly in a CPU-driven renderer?
+
+Suppose the scene contains 50,000 potentially visible objects. A naive renderer might do this every frame:
+
+```cpp
+for (RenderObject& object : objects)
+{
+    if (!is_visible(object))
+        continue;
+
+    bind_pipeline(object.pipeline);
+    bind_material(object.material);
+    bind_mesh(object.mesh);
+    draw(object);
+}
+```
+
+The problem is not that a C++ `for` loop over 50,000 elements is inherently expensive. The cost comes from the *kind* of work in the loop:
+
+- pointer chasing through engine objects;
+- branch-heavy visibility/material decisions;
+- sorting and state tracking;
+- descriptor and buffer binding decisions;
+- command-buffer writes;
+- driver/runtime bookkeeping;
+- repeatedly converting high-level scene state into low-level GPU commands.
+
+Modern CPUs are excellent at predictable arithmetic on contiguous data. They are less happy when each iteration touches unrelated heap objects and emits a different command sequence.
+
+### Why does the GPU make a good visibility processor?
+
+A GPU has thousands of arithmetic lanes designed to execute the same operation over many independent elements. Visibility testing often looks like:
+
+```text
+object 0 -> test bounds
+object 1 -> test bounds
+object 2 -> test bounds
+...
+object N -> test bounds
+```
+
+That is naturally data-parallel.
+
+Instead of the CPU producing *draw commands for visible objects*, we can upload a compact description of all candidate objects:
+
+```text
+GPUObjectData[]
+    transform
+    bounds
+    mesh index
+    material index
+```
+
+and let a compute shader perform:
+
+```text
+one invocation / object
+       |
+       +--> invisible -> emit nothing
+       |
+       +--> visible   -> append indirect command
+```
+
+The CPU is no longer responsible for the per-object draw decision.
+
+### Why indirect drawing is the bridge
+
+A compute shader cannot call a Vulkan API function. It cannot execute:
+
+```cpp
+vkCmdDrawIndexed(...);
+```
+
+Vulkan commands are created by the host CPU.
+
+What the GPU *can* do is write memory. Vulkan therefore provides indirect commands where drawing parameters are read from GPU-visible memory:
+
+```text
+CPU records once:
+
+vkCmdDrawIndexedIndirectCount(...)
+              |
+              v
+GPU reads command buffer at execution time
+```
+
+Now compute can generate the contents of that indirect buffer before the graphics pipeline consumes it.
+
+That is the core mechanism:
+
+```text
+scene data
+   |
+   v
+compute shader
+   |
+   +--> indirect command buffer
+   +--> draw count
+   |
+   v
+indirect draw command already recorded by CPU
+```
+
+### Why do meshes and materials need to become indices?
+
+An indirect command can contain fields such as index count, first index, vertex offset, instance count, and first instance. It cannot say:
+
+```text
+call vkCmdBindDescriptorSets(materialA)
+call vkCmdBindIndexBuffer(meshB)
+```
+
+Those are host-side Vulkan commands.
+
+So the scene representation must change from **CPU objects containing bindable state** into **GPU records containing indices**.
+
+That is why GPU-driven rendering tends to create tables:
+
+```text
+Object table
+    object -> mesh index, material index, transform
+
+Mesh table
+    mesh -> vertex address, first index, index count
+
+Material table
+    material -> texture indices, factors
+
+Texture table
+    texture index -> descriptor
+```
+
+This is not style. It follows from the fact that the GPU can efficiently follow data references but cannot dynamically issue arbitrary host API calls.
+
+### CPU-driven, GPU-driven, and mesh-shader approaches are points on a spectrum
+
+Do not think of GPU-driven rendering as universally superior.
+
+```text
+CPU-driven
+    CPU decides visibility and records draws
+
+Indirect/batched
+    CPU decides visibility but emits fewer API commands
+
+GPU-driven indirect
+    GPU decides visibility and writes indirect work
+
+Mesh/task shader driven
+    GPU can perform even more geometry selection/amplification internally
+```
+
+For a scene with only a few hundred objects, CPU-driven rendering can be simpler and fast enough. GPU-driven architectures earn their complexity when the amount of potential render work becomes large enough that CPU submission, visibility, or state-management overhead matters.
+
+### The engineering question to ask
+
+Never ask only:
+
+> Is GPU-driven rendering faster?
+
+Ask:
+
+> What part of my frame is currently expensive, and does moving per-object decision making to GPU-parallel data processing remove that bottleneck without creating a worse GPU bottleneck?
+
+A GPU culling pass can itself become expensive. It consumes bandwidth, compute resources, buffers, synchronization, and debugging complexity. The architecture is justified when measured total frame cost improves or when it enables a scale of scene that the CPU-driven path cannot sustain.
+
+### Reasoning checkpoint
+
+Before continuing, you should be able to explain without looking at this chapter:
+
+1. Why a GPU cannot simply call `vkCmdDrawIndexed()` from a compute shader.
+2. Why indirect commands make GPU-generated work possible.
+3. Why bindless resources and GPU tables naturally appear in GPU-driven designs.
+4. Why Buffer Device Address lets us keep separate vertex buffers while a global index-buffer strategy solves indirect index binding.
+5. Why fewer API calls alone are not the whole point—the larger goal is moving repetitive per-object decisions away from the CPU.
 
 ---
 
@@ -2399,6 +2619,359 @@ Add pipeline/layout destruction to your engine deletion queue.
 
 ---
 
+## Theory interlude — Vulkan synchronization from first principles
+
+The next code contains barriers. Do **not** learn the barriers as recipes. The goal of this interlude is to make you capable of deriving a barrier for a dependency you have never seen before.
+
+### Three facts must be kept separate
+
+A common source of confusion is treating these as the same thing:
+
+```text
+1. API / command order
+2. execution order
+3. memory visibility
+```
+
+They are related, but they are not identical.
+
+If a command buffer contains:
+
+```text
+A
+B
+C
+```
+
+that tells Vulkan the order in which commands were recorded. It does **not** mean all hardware work from A finishes before any hardware work from B begins.
+
+A GPU is deeply pipelined. Conceptually:
+
+```text
+Draw A:  vertex -------- fragment --------
+Draw B:          vertex -------- fragment --------
+Draw C:                 vertex -------- fragment --------
+```
+
+Different commands and different pipeline stages can overlap.
+
+That overlap is essential for performance. Synchronization exists so we restrict overlap **only where correctness requires it**.
+
+### A dependency begins with a resource hazard
+
+Ignore Vulkan enums for a moment. Start with one resource `X`.
+
+#### RAW — Read After Write
+
+```text
+Pass A: write X
+Pass B: read X
+```
+
+B needs the value produced by A.
+
+This is the most common rendering dependency.
+
+Example:
+
+```text
+compute culling writes indirect commands
+indirect draw reads indirect commands
+```
+
+#### WAR — Write After Read
+
+```text
+Pass A: read X
+Pass B: write X
+```
+
+B must not overwrite X while A is still consuming the old contents.
+
+#### WAW — Write After Write
+
+```text
+Pass A: write X
+Pass B: write X
+```
+
+If the order of the two results matters, the writes must be ordered.
+
+There is normally no hazard for:
+
+```text
+read -> read
+```
+
+because neither operation modifies the resource.
+
+### Execution dependency: *when* may the consumer proceed?
+
+Pipeline stage masks describe execution scopes.
+
+For a dependency:
+
+```text
+producer ----> consumer
+```
+
+ask:
+
+> In which stage does the producer perform the relevant operation?
+
+and:
+
+> In which stage does the consumer perform the dependent operation?
+
+For our indirect example:
+
+```text
+compute shader writes command memory
+              |
+              v
+DRAW_INDIRECT stage reads command memory
+```
+
+So the execution relationship is roughly:
+
+```cpp
+srcStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
+dstStageMask = VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT;
+```
+
+Do not mechanically choose `ALL_COMMANDS`. A wider scope can be correct, but it throws away information and may unnecessarily restrict overlap.
+
+### Memory dependency: *which* accesses must become visible?
+
+Stage masks alone do not describe the memory operations.
+
+Access masks answer:
+
+> What kind of producer memory operation must be made available?
+
+and:
+
+> What kind of consumer access must observe it?
+
+For the same example:
+
+```cpp
+srcAccessMask = VK_ACCESS_2_SHADER_WRITE_BIT;
+dstAccessMask = VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT;
+```
+
+A useful mental model is:
+
+```text
+src stage/access
+    identifies the writes we care about
+           |
+           v
+       barrier
+           |
+           v
+dst stage/access
+    identifies the dependent accesses
+```
+
+### Availability and visibility
+
+The Vulkan specification uses precise concepts such as *availability* and *visibility*.
+
+A useful simplified model is:
+
+```text
+producer writes data
+      |
+      |  make previous writes available
+      v
+synchronization
+      |
+      |  make data visible to consumer domain/access
+      v
+consumer reads data
+```
+
+On coherent-looking desktop hardware, missing synchronization can appear to work for a long time. That does not make the program correct. The GPU, driver, cache hierarchy, queue scheduling, or different vendor may expose the race later.
+
+### Deriving the Chapter 6 count-reset barrier
+
+We do:
+
+```cpp
+vkCmdFillBuffer(drawCountBuffer, 0);
+```
+
+then compute uses the same buffer.
+
+Reason from the operations:
+
+```text
+Producer:
+    operation: vkCmdFillBuffer
+    stage: TRANSFER
+    access: TRANSFER_WRITE
+
+Consumer:
+    operation: compute shader atomic/read/write
+    stage: COMPUTE_SHADER
+    access: SHADER_READ / SHADER_WRITE
+```
+
+Therefore:
+
+```text
+TRANSFER / TRANSFER_WRITE
+        ->
+COMPUTE_SHADER / SHADER_READ|SHADER_WRITE
+```
+
+The barrier is not magic. It is a direct encoding of that producer/consumer relationship.
+
+### Deriving compute -> indirect draw
+
+Now compute writes:
+
+```text
+indirect command buffer
+draw-count buffer
+```
+
+The indirect draw consumes both.
+
+```text
+Producer:
+    COMPUTE_SHADER
+    SHADER_WRITE
+
+Consumer:
+    DRAW_INDIRECT
+    INDIRECT_COMMAND_READ
+```
+
+So:
+
+```text
+COMPUTE_SHADER / SHADER_WRITE
+        ->
+DRAW_INDIRECT / INDIRECT_COMMAND_READ
+```
+
+Again, derived rather than memorized.
+
+### Images add another dimension: layout
+
+Buffers do not have image layouts. Images do.
+
+Suppose a pass renders to an image and the next pass samples it:
+
+```text
+Pass A
+COLOR_ATTACHMENT_OUTPUT
+COLOR_ATTACHMENT_WRITE
+layout = COLOR_ATTACHMENT_OPTIMAL
+
+Pass B
+FRAGMENT_SHADER
+SHADER_SAMPLED_READ
+layout = SHADER_READ_ONLY_OPTIMAL
+```
+
+Now the synchronization problem contains both:
+
+1. a write -> read memory dependency;
+2. an image layout transition.
+
+The image barrier expresses both.
+
+The layout is not a decorative enum. It tells the implementation how the image will be used and may correspond to internal compression/tiling/cache expectations.
+
+### Pipeline barriers versus semaphores
+
+A useful first rule:
+
+```text
+inside one queue submission / command stream
+    -> pipeline barriers are common
+
+between queue submissions
+    -> semaphores establish submission-level dependencies
+```
+
+A semaphore tells one submission that it cannot proceed past the relevant point until another submission signals it. You may still need correct memory scopes/layout transitions associated with that dependency.
+
+Fences are different again: they are primarily a **GPU -> CPU completion mechanism**. A fence is what the host can wait on to learn that submitted GPU work completed.
+
+```text
+barrier   : GPU work <-> GPU work inside command execution
+semaphore : submission/queue <-> submission/queue
+fence     : GPU completion -> CPU observation
+```
+
+This is simplified, but it is a much better mental model than treating all three as interchangeable synchronization objects.
+
+### Queue-family ownership is not ordinary synchronization
+
+If a resource moves between queue families that do not share ownership implicitly, you may also need an ownership transfer.
+
+That answers a separate question:
+
+> Which queue family is allowed to access this resource?
+
+Do not confuse queue ownership with visibility. A transfer can involve both ownership and memory/execution synchronization.
+
+### Why synchronization bugs are hard
+
+A missing dependency can produce:
+
+- correct frames most of the time;
+- corruption only on one vendor;
+- corruption only under heavy GPU load;
+- stale indirect counts;
+- one-frame-late data;
+- intermittent device loss;
+- a bug that disappears when RenderDoc is attached.
+
+This is why a rendering engineer must be able to reconstruct the resource history rather than guessing barriers until validation becomes quiet.
+
+### The synchronization worksheet
+
+For every dependency, write this before touching Vulkan enums:
+
+```text
+Resource:
+
+Producer operation:
+Producer stage:
+Producer access:
+
+Consumer operation:
+Consumer stage:
+Consumer access:
+
+Hazard: RAW / WAR / WAW / none
+
+Image layout before/after, if applicable:
+Queue ownership change, if applicable:
+Submission/queue boundary, if applicable:
+```
+
+Only then translate it into `Vk*Barrier2`, semaphore waits/signals, or both.
+
+### Reasoning exercises
+
+Derive the synchronization for these without copying an example:
+
+1. Compute shader writes a storage image; fragment shader samples it.
+2. Depth pass writes depth; compute pass samples the depth pyramid source.
+3. Transfer queue uploads a vertex buffer; graphics queue reads it as vertex data.
+4. Compute skinning writes a vertex buffer; shadow and opaque passes both read it.
+5. A color attachment is reused as a color attachment next frame with no intermediate read.
+
+For each one, identify producer, consumer, hazard, stages, accesses, layout if relevant, and whether a queue/submission boundary exists.
+
+---
+
 # 18. Synchronization2: reset → compute → indirect draw
 
 This is the section where Vulkan synchronization becomes central.
@@ -2582,6 +3155,113 @@ The object buffer is written by the CPU before queue submission.
 If you use non-coherent mapped memory, flush the written range with VMA before submission. We are not writing the object buffer from another GPU stage in this first version, so there is no compute-to-compute dependency required for it.
 
 If you later upload object data through transfer commands, then you will need a transfer-write → compute-read dependency too.
+
+---
+
+## Theory interlude — frustum and occlusion culling as conservative visibility tests
+
+Before moving the Chapter 5 culling code to compute, remember what culling is allowed to do.
+
+A culling algorithm is normally **conservative**:
+
+```text
+certainly invisible -> reject
+possibly visible    -> keep
+```
+
+A false positive costs performance because an invisible object is drawn. A false negative is usually a correctness bug because a visible object disappears.
+
+### Why bounds are used instead of triangles
+
+Testing every triangle against the frustum would defeat the purpose of culling. We use a cheap enclosing volume:
+
+```text
+sphere
+AABB
+OBB
+meshlet bound
+```
+
+The bound contains the real geometry, so rejecting the bound guarantees that the geometry is outside only when the test is constructed conservatively.
+
+### Clip-space intuition
+
+A point transformed by the view-projection matrix becomes homogeneous clip coordinates:
+
+```text
+p_clip = ViewProjection * p_world
+```
+
+Before perspective divide, the canonical clipping conditions are expressed relative to `w`.
+
+For the common Vulkan clip convention, after accounting for the exact projection convention used by this engine, visibility is ultimately related to inequalities of the form:
+
+```text
+-w <= x <= w
+-w <= y <= w
+z range according to Vulkan projection convention
+```
+
+After dividing by `w`, the point becomes NDC.
+
+The important principle is that frustum culling asks whether an entire bound lies outside at least one clipping plane. If it does, the object can be rejected.
+
+### Why GPU culling usually uses spheres/AABBs and not perfect tests
+
+A perfect visibility test is not the goal. The goal is to spend much less time testing than drawing the rejected work would have cost.
+
+GPU culling therefore values:
+
+- few memory reads;
+- low branch divergence;
+- compact bounds;
+- simple arithmetic;
+- conservative results.
+
+This explains why a slightly loose sphere can outperform a mathematically tighter but much more expensive bound test.
+
+### Why Hi-Z works
+
+A depth pyramid stores progressively coarser summaries of the depth buffer.
+
+Conceptually:
+
+```text
+Mip 0: full-resolution depth
+Mip 1: summary of 2x2 regions
+Mip 2: summary of 4x4 regions
+...
+```
+
+An object's screen-space rectangle can choose a mip where only a small number of samples approximate the depth of the entire covered region.
+
+With reversed-Z, the reduction operation and comparison direction must match the engine's depth convention. Do not memorize “min” or “max” independent of that convention. Ask:
+
+> Which numerical depth value represents the closest surface in this projection?
+
+Then construct the pyramid so each texel conservatively represents the occluder information needed by the test.
+
+### Temporal consequence
+
+If culling uses the previous frame's depth pyramid, then visibility decisions are based on stale information. This can be acceptable because camera motion between adjacent frames is usually small, but the algorithm must remain conservative enough to avoid obvious popping.
+
+Production systems may add:
+
+- expanded bounds;
+- velocity/camera-motion margins;
+- one-frame visibility hysteresis;
+- special handling for newly spawned objects;
+- software/raster occlusion alternatives.
+
+### Reasoning checkpoint
+
+You should be able to answer:
+
+1. Why culling prefers false positives over false negatives.
+2. Why the cheapest valid bound is often better than the tightest bound.
+3. Why reversed-Z changes how a depth pyramid is reduced/interpreted.
+4. Why previous-frame occlusion introduces temporal error.
+5. How you would measure whether Hi-Z saves more raster work than the culling pass itself costs.
 
 ---
 
